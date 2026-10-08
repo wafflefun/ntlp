@@ -1,0 +1,2258 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- 🔧 TEXTOS: si cambias TITULO o SUBTITULO (más abajo, en el JavaScript), cámbialos también
+     en estas dos líneas: son las que se ven al compartir el link y en los buscadores. -->
+<title>No toques las paredes</title>
+<meta name="description" content="Lleva el cursor por un laberinto que se va cerrando. Si tocas un borde, pierdes.">
+<!--
+=====================================================================
+  🧱 NO TOQUES LAS PAREDES — GUÍA RÁPIDA PARA EDITAR
+=====================================================================
+  Todo el juego está en este único archivo (HTML + CSS + JavaScript).
+  Para encontrar lo que quieres cambiar, busca (Ctrl+F) estas marcas:
+
+   🔧 COLORES     → colores y fuentes de la página (en el CSS) y colores
+                    del tablero (objeto COLORES_JUEGO, en el JavaScript)
+   🔧 CONFIG      → vidas, tamaños, cuándo empieza el "peligro", modo
+                    infinito, sonido, link para compartir
+     ⏱️ TIEMPOS   → (dentro de CONFIG) cuánto duran los mensajes y pausas
+     🔧 PUNTOS    → (dentro de CONFIG) cuántos puntos da cada nivel
+   🔧 NIVELES     → los 8 niveles: forma del pasillo, ancho y tiempo.
+                    Tiene un dibujo de la cuadrícula y un paso a paso
+                    para agregar o cambiar niveles.
+   🔧 OBSTÁCULOS  → las sierras que se mueven (cómo se escriben)
+   🔧 INFINITO    → dificultad de los niveles que se crean solos
+                    después del nivel 8
+   🔧 RANGOS      → títulos del final según el nivel al que llegaste
+   🔧 TEXTOS      → TODOS los textos que se ven en pantalla
+   🔧 SONIDOS     → notas, duración y volumen de cada sonido
+   🔧 DIBUJO      → aspecto del pasillo, paredes, jugador, brillo, confeti
+   💡 IDEA        → cosas que se podrían agregar más adelante (cada idea
+                    está escrita justo donde habría que programarla)
+
+  AYUDAS PARA DISEÑAR NIVELES:
+   • En 🔧 CONFIG cambia MOSTRAR_GUIA a true: el tablero muestra la
+     cuadrícula con las coordenadas [x, y] de cada celda, la línea central
+     del pasillo con sus puntos numerados, y avisa en amarillo si el nivel
+     rompe alguna regla (tramos muy pegados, META muy cerca, etc.).
+     Acuérdate de volver a ponerlo en false antes de publicar.
+   • Agrega ?nivel=N al final de la dirección para empezar directo en
+     ese nivel. Ejemplo:  index.html?nivel=5   (9 o más = modo infinito)
+   • Teclas mientras juegas: M = sonido, P o Esc = pausa (para cambiarlas,
+     busca la función alPresionarTecla).
+
+  Regla de oro: casi todo lo que se puede cambiar está en los objetos
+  de configuración de arriba. Cada número tiene una nota que dice qué
+  hace y en qué unidad está (ms, segundos, px, celdas).
+=====================================================================
+-->
+
+<!-- Fuentes: "Bangers" (títulos estilo cómic) y "Nunito" (texto).
+     🔧 COLORES: para cambiar de fuente, cambia el link y las variables
+     --fuente-titulo / --fuente-texto más abajo. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:ital,wght@0,600;0,800;0,900;1,700&display=swap" rel="stylesheet">
+
+<style>
+  /* =================================================================
+     🔧 COLORES de la página
+     Cambia estos valores y toda la página cambia de color.
+     (Los colores del tablero —paredes, pasillo, jugador— están en
+      COLORES_JUEGO, dentro del JavaScript más abajo)
+     ================================================================= */
+  :root {
+    --fondo: #12061f;          /* color de fondo principal */
+    --fondo-2: #2b0b45;        /* segundo color del degradado de fondo */
+    --panel: rgba(255, 255, 255, 0.06);   /* fondo de las cajas */
+    --borde: rgba(255, 255, 255, 0.14);   /* bordes de las cajas */
+    --texto: #f6ecff;          /* texto principal */
+    --texto-suave: #bda9d6;    /* texto secundario */
+    --acento: #ff3b8d;         /* color de botones principales */
+    --acento-2: #8a5cff;       /* segundo color de acento */
+    --ok: #3dffa8;             /* color de "todo bien" (barra del pasillo llena) */
+    --peligro: #ff2d55;        /* color de "peligro" (barra casi vacía) */
+    --radio: 18px;             /* qué tan redondeadas son las esquinas */
+    --fuente-titulo: "Bangers", "Impact", sans-serif;
+    --fuente-texto: "Nunito", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  html { height: 100%; overscroll-behavior: none; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--texto);
+    font-family: var(--fuente-texto);
+    background: radial-gradient(circle at 20% 0%, var(--fondo-2), var(--fondo) 60%) fixed;
+    background-color: var(--fondo);
+    overflow: hidden;              /* el juego cabe en la pantalla: nunca hay que bajar */
+    overscroll-behavior: none;
+  }
+
+  /* La app ocupa exactamente el alto de la pantalla (100dvh = alto visible real en celulares) */
+  .app {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 10px 16px 12px;
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* ---------- Encabezado ---------- */
+  header { text-align: center; flex: none; }
+  header h1 {
+    font-family: var(--fuente-titulo);
+    font-weight: 400;
+    font-size: clamp(2rem, 5.5vw, 3.2rem);
+    line-height: 1.05;
+    letter-spacing: 2px;
+    margin: 0;
+    color: #fff;
+    text-shadow: 3px 3px 0 var(--acento), 6px 6px 0 var(--acento-2);
+  }
+  header p { margin: 4px 0 0; color: var(--texto-suave); font-weight: 700; font-size: 0.95rem; }
+
+  /* ---------- Zona del juego (HUD + tablero) ---------- */
+  .juego { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+
+  /* HUD: la barra con nivel, vidas, puntos y pasillo */
+  .hud {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 16px;
+    padding: 7px 12px;
+    background: var(--panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    font-weight: 800;
+  }
+  .hud-nivel { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; flex: 0 1 auto; }
+  .hud-nivel small { color: var(--texto-suave); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
+  .hud-nivel b {
+    font-family: var(--fuente-titulo); font-weight: 400; font-size: 1.35rem; letter-spacing: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .hud-vidas { font-size: 1.15rem; letter-spacing: 2px; white-space: nowrap; }
+  .hud-puntos { font-size: 1.05rem; white-space: nowrap; }
+  .hud-pasillo { flex: 1 1 200px; display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .hud-pasillo small { color: var(--texto-suave); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
+  .barra { flex: 1; height: 12px; border-radius: 99px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+  .barra span { display: block; height: 100%; width: 100%; border-radius: inherit; background: var(--ok); transition: background 0.3s; }
+  .hud-pasillo.peligro .barra span { background: var(--peligro); }
+  .hud-pasillo .porcentaje { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; }
+  .hud-pasillo.peligro .porcentaje { color: var(--peligro); }
+
+  /* El tablero se centra en el espacio que sobra; su tamaño lo calcula el JavaScript */
+  .zona { flex: 1 1 0; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; }
+  .caja-lienzo { position: relative; width: 100%; height: 100%; }
+  #lienzo {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 16px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+    touch-action: none;              /* en celular: el dedo mueve el punto, no la página */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .caja-lienzo.sin-cursor #lienzo { cursor: none; }   /* mientras juegas, el punto reemplaza al cursor */
+
+  /* ---------- Botones generales (iguales a "Crea tu Villano") ---------- */
+  .btn {
+    padding: 12px 18px;
+    border-radius: 999px;
+    border: 2px solid var(--borde);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--texto);
+    font: 900 1rem var(--fuente-texto);
+    cursor: pointer;
+    transition: transform 0.12s, filter 0.2s;
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.15); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.principal { background: var(--acento); border-color: var(--acento); color: #fff; }
+  .btn.secundario { background: var(--acento-2); border-color: var(--acento-2); color: #fff; }
+  .btn.grande { font-size: 1.15rem; padding: 14px 24px; }
+  .btn.icono { padding: 6px 10px; font-size: 1.2rem; line-height: 1; margin-left: auto; min-width: 44px; min-height: 44px; }  /* 44 px = tamaño cómodo para el dedo */
+
+  /* ---------- Pantallas que aparecen encima del tablero ---------- */
+  .pantalla {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    padding: 12px;
+    overflow-y: auto;
+    border-radius: 16px;
+    background: rgba(12, 4, 22, 0.78);
+  }
+  /* Las pantallas "ligeras" (nivel superado / golpe) dejan ver y usar el tablero detrás */
+  .pantalla.ligera { background: transparent; pointer-events: none; }
+  .pantalla.ligera .tarjeta { pointer-events: auto; }
+  .tarjeta {
+    margin: auto;
+    width: min(100%, 460px);
+    text-align: center;
+    padding: 18px 18px 20px;
+    border-radius: var(--radio);
+    border: 1px solid var(--borde);
+    background: linear-gradient(var(--panel), var(--panel)), var(--fondo);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  }
+  .tarjeta h2 {
+    font-family: var(--fuente-titulo);
+    font-weight: 400;
+    font-size: clamp(1.7rem, 5vw, 2.5rem);
+    letter-spacing: 1px;
+    margin: 0 0 8px;
+  }
+  .tarjeta p { margin: 6px 0; }
+  .instrucciones { list-style: none; padding: 0; margin: 4px 0 16px; text-align: left; display: grid; gap: 8px; font-weight: 800; }
+  .instrucciones li { background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 8px 12px; }
+  .record { color: var(--texto-suave); font-weight: 800; }
+  .atajos { color: var(--texto-suave); font-size: 0.85rem; }
+  .titulo-compacto { display: none; }   /* el título dentro de la tarjeta: sólo en celular acostado (ver más abajo) */
+  .sub { color: var(--texto-suave); font-weight: 800; }
+  .acciones { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 14px; }
+  .nuevo-record { color: var(--ok); font-weight: 900; font-size: 1.15rem; }
+  .rango {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 2px;
+    padding: 6px 16px;
+    border-radius: 999px;
+    color: #fff;
+    background: linear-gradient(90deg, var(--acento), var(--acento-2));
+    font: 400 1.6rem var(--fuente-titulo);
+    letter-spacing: 1px;
+  }
+  .rango-etiqueta { display: block; color: var(--texto-suave); font-weight: 800; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-top: 8px; }
+
+  /* Destello rojo cuando chocas */
+  .destello { position: absolute; inset: 0; z-index: 2; border-radius: 16px; background: var(--peligro); opacity: 0; pointer-events: none; }
+  .destello.activo { animation: destello 0.45s ease-out; }
+  @keyframes destello { from { opacity: 0.55; } to { opacity: 0; } }
+
+  /* El juego tiembla cuando chocas */
+  .juego.temblando { animation: temblar 0.4s; }
+  @keyframes temblar {
+    0%, 100% { transform: translate(0, 0); }
+    20% { transform: translate(-8px, 3px); }
+    40% { transform: translate(7px, -4px); }
+    60% { transform: translate(-5px, -2px); }
+    80% { transform: translate(4px, 3px); }
+  }
+
+  /* Capa transparente encima de todo para el confeti del récord y de la victoria
+     (así no queda tapado por la pantalla de fin) */
+  .capa-fiesta { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
+
+  /* ---------- Aviso flotante (toast) ---------- */
+  .aviso {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translate(-50%, 140%);
+    background: #fff;
+    color: #1a0b2e;
+    padding: 12px 20px;
+    border-radius: 22px;
+    width: max-content;            /* sin esto, en celular el aviso queda angosto (la mitad de la pantalla) */
+    font-weight: 900;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    transition: transform 0.3s, opacity 0.3s;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 10;
+    max-width: calc(100vw - 32px);
+    text-align: center;
+  }
+  .aviso.visible { transform: translate(-50%, 0); opacity: 1; }
+
+  /* Texto sólo para lectores de pantalla (personas ciegas) */
+  .solo-lector { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* En celular: todo un poco más compacto */
+  @media (max-width: 600px) {
+    .app { padding: 8px 12px 10px; gap: 6px; }
+    header h1 { font-size: clamp(1.5rem, 7vw, 2.2rem); text-shadow: 2px 2px 0 var(--acento), 4px 4px 0 var(--acento-2); }   /* cabe en una línea */
+    header p { font-size: 0.82rem; }
+    .juego { gap: 6px; }
+    .hud { gap: 4px 12px; padding: 6px 10px; }
+    .hud-nivel b { font-size: 1.1rem; }
+    .hud-pasillo { order: 5; flex-basis: 100%; }
+    .tarjeta { padding: 14px 12px 16px; }
+    .btn.grande { font-size: 1.05rem; padding: 12px 20px; }
+  }
+  /* Pantallas no muy altas: se esconde el subtítulo para que el tablero sea más grande.
+     🔧 Cambia 700px si quieres que el subtítulo se vea en más (o menos) pantallas. */
+  @media (max-height: 700px) {
+    header p { display: none; }
+  }
+  /* Pantallas bajitas (celular acostado): sin encabezado, HUD en una línea, y las
+     pantallas de inicio y fin ocupan toda la pantalla para que todos los botones quepan */
+  @media (max-height: 500px) {
+    header { display: none; }
+    .app { padding-top: 6px; padding-bottom: 6px; gap: 6px; }
+    .juego { gap: 6px; }
+    .hud { padding: 2px 10px; gap: 4px 14px; flex-wrap: nowrap; }
+    .hud-nivel { flex-direction: row; align-items: baseline; gap: 6px; }
+    .hud-pasillo { order: 0; flex: 1 1 120px; }
+    .pantalla:not(.ligera) { position: fixed; inset: 0; border-radius: 0; }
+    .titulo-compacto {
+      display: block; margin: 0 0 6px; color: #fff;
+      font: 400 1.7rem/1.05 var(--fuente-titulo); letter-spacing: 2px;
+      text-shadow: 2px 2px 0 var(--acento), 4px 4px 0 var(--acento-2);
+    }
+    #inicioTitulo { display: none; }
+    .tarjeta { width: min(100%, 600px); padding: 10px 14px 12px; }
+    .tarjeta h2 { font-size: 1.7rem; margin-bottom: 4px; }
+    .instrucciones { gap: 4px; margin: 2px 0 10px; font-size: 0.92rem; }
+    .instrucciones li { padding: 4px 10px; }
+    .acciones { margin-top: 8px; }
+    .rango { font-size: 1.35rem; padding: 4px 14px; }
+    .tarjeta p { margin: 4px 0; }
+    .btn.grande { padding: 10px 22px; }
+  }
+  /* Con pantalla táctil no hay teclado: no se muestran los atajos de teclas */
+  @media (hover: none) {
+    .atajos { display: none; }
+  }
+
+  /* Respeta a quien prefiere menos animaciones */
+  @media (prefers-reduced-motion: reduce) {
+    .juego.temblando, .destello.activo { animation: none; }
+    .btn, .aviso { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <!-- 🔧 TEXTOS: el título y el subtítulo se escriben desde el objeto TEXTOS -->
+    <h1 id="titulo"></h1>
+    <p id="subtitulo"></p>
+  </header>
+
+  <main class="juego" id="juego">
+    <!-- HUD: nivel, vidas, puntos, barra del pasillo y botón de sonido -->
+    <div class="hud" id="hud">
+      <div class="hud-nivel"><small id="hudNivelNum"></small><b id="hudNivelNombre"></b></div>
+      <div class="hud-vidas" id="hudVidas" role="img"></div>
+      <div class="hud-puntos" id="hudPuntos"></div>
+      <div class="hud-pasillo" id="hudPasillo">
+        <small id="hudPasilloTexto"></small>
+        <div class="barra" aria-hidden="true"><span id="hudBarra"></span></div>
+        <span class="porcentaje" id="hudPorcentaje"></span>
+      </div>
+      <button class="btn icono" id="btnSonido" type="button"></button>
+    </div>
+
+    <div class="zona" id="zona">
+      <div class="caja-lienzo" id="caja">
+        <!-- El laberinto se dibuja en este canvas (ver 🔧 DIBUJO en el código) -->
+        <canvas id="lienzo" role="img"></canvas>
+        <div class="destello" id="destello" aria-hidden="true"></div>
+
+        <!-- (1) Pantalla de inicio -->
+        <section class="pantalla" id="pantallaInicio" aria-labelledby="inicioTitulo">
+          <div class="tarjeta">
+            <p class="titulo-compacto" id="tituloCompacto" aria-hidden="true"></p>
+            <h2 id="inicioTitulo"></h2>
+            <ul class="instrucciones" id="instrucciones"></ul>
+            <button class="btn principal grande" id="btnJugar" type="button" data-principal></button>
+            <p class="record" id="textoRecord"></p>
+            <button class="btn" id="btnSonidoInicio" type="button"></button>
+            <p class="atajos" id="textoAtajos"></p>
+          </div>
+        </section>
+
+        <!-- (4) Nivel superado -->
+        <section class="pantalla ligera" id="pantallaNivel" aria-labelledby="nivelTitulo" hidden>
+          <div class="tarjeta">
+            <h2 id="nivelTitulo"></h2>
+            <p class="sub" id="nivelSub"></p>
+            <button class="btn principal grande" id="btnSiguiente" type="button" data-principal></button>
+          </div>
+        </section>
+
+        <!-- (5) Perdiste una vida (dura poquito) -->
+        <section class="pantalla ligera" id="pantallaGolpe" aria-labelledby="golpeTitulo" hidden>
+          <div class="tarjeta">
+            <h2 id="golpeTitulo"></h2>
+            <p class="sub" id="golpeSub"></p>
+          </div>
+        </section>
+
+        <!-- (6) y (7) Fin del juego / Victoria (es la misma pantalla con otros textos) -->
+        <section class="pantalla" id="pantallaFin" aria-labelledby="finTitulo" hidden>
+          <div class="tarjeta">
+            <h2 id="finTitulo"></h2>
+            <p class="nuevo-record" id="finRecord" hidden></p>
+            <p id="finTexto"></p>
+            <p id="finPuntos"></p>
+            <span class="rango-etiqueta" id="finRangoEtiqueta"></span>
+            <span class="rango" id="finRango"></span>
+            <div class="acciones">
+              <button class="btn principal grande" id="btnOtra" type="button" data-principal></button>
+              <button class="btn secundario" id="btnCompartir" type="button"></button>
+              <button class="btn" id="btnInicio" type="button"></button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<canvas class="capa-fiesta" id="capaFiesta" aria-hidden="true"></canvas>
+<div class="aviso" id="aviso" role="status"></div>
+<!-- Aquí se "anuncian" los mensajes para lectores de pantalla -->
+<div class="solo-lector" id="anuncio" aria-live="polite"></div>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   🔧 CONFIG — ajustes generales del juego
+   ===================================================================== */
+const CONFIG = {
+  // ❤️ Vidas con las que empiezas cada partida
+  VIDAS: 3,
+
+  // 📏 TAMAÑOS (en px del tablero: el tablero mide 960 x 600 y cada celda 60 x 60)
+  RADIO_JUGADOR: 7,          // px: radio del punto que mueves. Lo que ves es EXACTAMENTE lo que choca.
+  RADIO_INICIO_META: 26,     // px: radio de los círculos INICIO y META (estos no se achican)
+  RADIO_REGRESO: 18,         // px: radio mínimo del "punto de regreso" de la pausa (siempre es al menos 2.5 veces el jugador)
+  TOQUE_MINIMO: 22,          // px de PANTALLA: con el dedo, INICIO y el punto de regreso aceptan toques hasta esta
+                             // distancia aunque en un celular se vean más chicos (el punto parte en el centro del círculo)
+
+  // 🧱 PAREDES QUE SE CIERRAN
+  PELIGRO: 0.35,             // cuando queda menos de esta parte del pasillo (0.35 = 35 %), el borde parpadea rojo y suena un tic-tac
+  CURVA_CIERRE: 'lineal',    // cómo se cierran: 'lineal' (parejo), 'acelerando' (lento al principio y rápido al final), 'frenando' (al revés)
+  // 💡 IDEA: modo "zen" sin paredes que se cierran: agregar ZEN: true aquí y en avanzarJuego() no achicar el pasillo.
+
+  // ♾️ MODO INFINITO
+  MODO_INFINITO: true,       // true = después del nivel 8 siguen niveles que se crean solos (ver 🔧 INFINITO). false = al pasar el 8 sale "¡Ganaste!"
+
+  // 🔊 SONIDO (ver también 🔧 SONIDOS)
+  SONIDO: true,              // true = la primera vez el sonido parte encendido; false = parte apagado (el jugador lo puede prender)
+  VOLUMEN: 0.25,             // volumen general: 0 = mudo, 1 = máximo
+
+  // 🔧 PUNTOS — al pasar un nivel ganas: PUNTOS_POR_NIVEL + (PUNTOS_BONUS_MAX × parte del pasillo que te sobró)
+  PUNTOS_POR_NIVEL: 100,     // puntos fijos por pasar cualquier nivel
+  PUNTOS_BONUS_MAX: 100,     // bonus máximo por llegar rápido (si llegas con el pasillo entero ganas los 100)
+  // 💡 IDEA: monedas de bonus dentro del pasillo: agregar a cada nivel "monedas: [[x, y], ...]",
+  //          dibujarlas en dibujar() y en evaluarPunto() sumar puntos cuando el jugador pase encima.
+
+  // ⏱️ TIEMPOS (en milisegundos: 1000 = 1 segundo). El tiempo de cada nivel está en 🔧 NIVELES.
+  TIEMPO_ENTRE_NIVELES: 1800,  // cuánto se ve "¡Nivel superado!" antes de pasar solo al siguiente
+  TIEMPO_GOLPE: 1300,          // cuánto se ve "¡Tocaste la pared!" antes de repetir el nivel
+  TIEMPO_AVISO: 2400,          // cuánto se ve el aviso de abajo ("¡Texto copiado!", etc.)
+  TIEMPO_VIBRAR: 200,          // cuánto vibra el celular al chocar (si el celular lo permite)
+
+  // 🛠️ AYUDAS PARA EL DUEÑO
+  MOSTRAR_GUIA: false,       // true = dibuja la cuadrícula con coordenadas, la línea central y los problemas del nivel
+  MARGEN_PARED: 0.4,         // celdas: pared mínima que debe separar dos partes del pasillo (la usa la revisión de niveles)
+  PASO_COLISION: 2,          // px: cada cuánto se revisa el camino del cursor (así un movimiento rápido no "atraviesa" paredes). No subir de 2.
+
+  // 📤 COMPARTIR y memoria del navegador
+  URL_COMPARTIR: 'https://wafflefun.github.io/noparess/',
+  CLAVE_RECORD: 'noToquesLasParedes.record',     // nombre con que se guarda el récord
+  CLAVE_SONIDO: 'noToquesLasParedes.silencio',   // nombre con que se guarda si el sonido está apagado
+};
+
+/* =====================================================================
+   🔧 COLORES del tablero (lo que se dibuja en el canvas)
+   Usa siempre el formato '#rrggbb' (6 letras/números): así el juego
+   puede mezclar colores (por ejemplo, las paredes que se ponen rojas).
+   ===================================================================== */
+const COLORES_JUEGO = {
+  pared: '#3a1d5c',          // color de los ladrillos de las paredes
+  paredJunta: '#26103f',     // líneas entre ladrillos
+  paredPeligro: '#8a1030',   // color hacia el que se tiñen las paredes mientras se cierran
+  suelo: '#0d0618',          // piso del pasillo (por donde SÍ puedes pasar)
+  borde: '#8a5cff',          // borde brillante del pasillo
+  bordePeligro: '#ff2d55',   // borde cuando queda poco pasillo (parpadea)
+  jugador: '#ffffff',        // el punto que mueves
+  jugadorBrillo: '#7fe9ff',  // brillo alrededor del punto
+  inicio: '#3dffa8',         // círculo INICIO
+  meta: '#ffd23f',           // círculo META (dorado)
+  metaOscuro: '#b8860b',     // sombra del dorado de la META
+  metaAro: '#fff3b0',        // aro alrededor de la META
+  banderaPalo: '#3a2400',    // palito de la bandera de la META
+  banderaCuadros: ['#ffffff', '#1a0b2e'],   // los dos colores de los cuadros de la bandera
+  obstaculo: '#ff3b3b',      // sierras
+  obstaculoOscuro: '#7a0b16',  // centro y contorno de las sierras
+  sierraOjos: '#ffffff',     // ojos y cejas de las sierras
+  sierraPupila: '#000000',   // pupilas de las sierras
+  regreso: '#7fe9ff',        // "punto de regreso" en la pausa
+  pausaFondo: '#05020c',     // color con que se oscurece el tablero en la pausa (qué tanto: DIBUJO.OSCURO_PAUSA)
+  texto: '#ffffff',          // textos dibujados en el tablero
+  contorno: '#0a0314',       // contorno oscuro de los textos del tablero (INICIO, META, PAUSA)
+  pildora: '#140822',        // fondo de las cajitas de texto del tablero
+  confeti: ['#ff3b8d', '#8a5cff', '#3dffa8', '#ffd23f', '#7fe9ff'],   // colores de los papelitos (puedes poner más o menos)
+  chispas: ['#ff2d55', '#ff8a3d', '#ffffff'],                         // colores de las chispas al chocar
+  guia: '#ffffff',           // cuadrícula de la guía (MOSTRAR_GUIA)
+  guiaLinea: '#ffd23f',      // línea central de la guía
+};
+
+/* =====================================================================
+   🔧 DIBUJO — aspecto de las cosas en el tablero (medidas en px del tablero)
+   ===================================================================== */
+const DIBUJO = {
+  LADRILLO_ANCHO: 40,        // px: ancho de cada ladrillo de la pared
+  LADRILLO_ALTO: 20,         // px: alto de cada ladrillo
+  GROSOR_BORDE: 3,           // px: línea brillante que marca dónde empieza la pared
+  HALO_BORDE: 7,             // px: brillo suave fuera del borde
+  TINTE_PELIGRO: 0.75,       // 0 a 1: qué tan rojas se ponen las paredes cuando el pasillo está por cerrarse
+  BRILLO_JUGADOR: 3.2,       // tamaño del brillo del jugador (veces su radio). El punto sólido es su tamaño real.
+  PULSO_INICIO: 1.2,         // veces por segundo que "late" el círculo INICIO
+  PUNTAS_SIERRA: 10,         // cuántas puntas tiene cada sierra
+  GIRO_SIERRA: 7,            // radianes por segundo que giran las sierras (6.3 = una vuelta por segundo; 0 = quietas)
+  PARPADEO_LENTO: 5,         // rapidez del parpadeo rojo del borde cuando empieza el peligro (6.3 = un parpadeo por segundo)
+  PARPADEO_RAPIDO: 17,       // ...y justo antes de que te aplasten (17 = unos 2.7 parpadeos por segundo)
+  OSCURO_PAUSA: 0.5,         // 0 a 1: cuánto se oscurece el tablero en la pausa
+  CONFETI_CANTIDAD: 90,      // papelitos al pasar un nivel
+  CHISPAS_CANTIDAD: 30,      // chispas al chocar
+  FUERZA_CONFETI: 520,       // px por segundo: con cuánta fuerza salta el confeti
+  FUERZA_CHISPAS: 380,       // px por segundo: con cuánta fuerza saltan las chispas
+  GRAVEDAD: 900,             // px por segundo²: qué tan rápido caen el confeti y las chispas
+  TAM_ETIQUETAS: 24,         // px: letra de "INICIO" y "META"
+  TAM_PILDORAS: 19,          // px: letra de las cajitas ("Pon el cursor en INICIO", "Vuelve a poner el cursor aquí")
+  TAM_PAUSA: 40,             // px: letra de "⏸ PAUSA"
+  TEXTO_MINIMO: 0.85,        // en pantallas chicas los textos del tablero se agrandan para que en pantalla midan al
+                             // menos esta parte de su tamaño normal (0.85 = 85 %; máximo 1.7 veces). 0 = nunca agrandar.
+  // 💡 IDEA: "skins" del jugador: agregar aquí FORMA_JUGADOR: 'punto' | 'estrella' | 'emoji' y
+  //          usarla en dibujarJugador(). OJO: el tamaño de choque debe seguir siendo RADIO_JUGADOR.
+};
+
+/* =====================================================================
+   🔧 NIVELES — los niveles hechos a mano
+   ---------------------------------------------------------------------
+   El tablero es una cuadrícula de 16 columnas (x) por 10 filas (y).
+   Cada punto [x, y] es el CENTRO de una celda. x crece hacia la derecha
+   y y crece hacia ABAJO. Ejemplo: el nivel 1 "Calentamiento" es
+   [[2, 7], [6, 7], [6, 3], [13, 3]]:
+
+        x →  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+     y ↓ 0   ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·
+         1   ·  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ·
+         2   ·  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ·
+         3   ·  ░  ░  ░  ░  ░  C━━━━━━━━━━━━━━━━━━━━M  ░  ·
+         4   ·  ░  ░  ░  ░  ░  ┃  ░  ░  ░  ░  ░  ░  ░  ░  ·
+         5   ·  ░  ░  ░  ░  ░  ┃  ░  ░  ░  ░  ░  ░  ░  ░  ·
+         6   ·  ░  ░  ░  ░  ░  ┃  ░  ░  ░  ░  ░  ░  ░  ░  ·
+         7   ·  ░  I━━━━━━━━━━━B  ░  ░  ░  ░  ░  ░  ░  ░  ·
+         8   ·  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ░  ·
+         9   ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·
+
+     I = INICIO [2, 7] (primer punto)   B = [6, 7]   C = [6, 3]
+     M = META [13, 3] (último punto)
+     ░ = zona permitida (x de 1 a 14, y de 1 a 8)
+     · = orilla: NO poner puntos ahí (el pasillo tocaría el borde)
+
+   Cada nivel tiene:
+     nombre     → el nombre que sale arriba
+     puntos     → la línea central del pasillo, de INICIO a META
+     ancho      → ancho INICIAL del pasillo, en celdas (1 = 60 px)
+     tiempo     → segundos que tardan las paredes en cerrarse del todo
+     obstaculos → sierras que se mueven (ver 🔧 OBSTÁCULOS más abajo)
+
+   CÓMO AGREGAR O CAMBIAR UN NIVEL (paso a paso):
+     1. Dibuja tu camino en un papel cuadriculado de 16 x 10.
+     2. Anota los puntos donde el camino dobla, de INICIO a META.
+        Pueden ser rectas o diagonales.
+     3. Copia el nivel de ejemplo de abajo (sin las // del principio),
+        pégalo en la lista donde quieras y cambia los datos.
+     4. Reglas para que el nivel sea justo:
+        • Dos partes del pasillo que NO van seguidas deben estar
+          separadas por al menos "ancho + 0.4" celdas (si no, se
+          juntan y el jugador podría cortar camino).
+        • INICIO y META no deben quedar pegados a otra parte del pasillo.
+     5. Pon MOSTRAR_GUIA: true en 🔧 CONFIG y abre index.html?nivel=N
+        (N = número de tu nivel): verás la cuadrícula con los puntos
+        numerados y, si algo está mal, un aviso amarillo que dice qué
+        arreglar. Los avisos hablan de "tramos": el tramo 3 es la parte del
+        pasillo que va del punto 3 al punto 4. (La lista completa de
+        problemas sale también en la consola del navegador: tecla F12.)
+        También muestra la "velocidad necesaria" (en px por segundo):
+        menos de 80 es fácil; unos 160 ya es muy difícil (es lo que pide
+        el nivel 8); más de 200 casi nadie lo logra.
+     6. Si el nivel es muy difícil: sube "tiempo" o "ancho".
+        Si es muy fácil: bájalos.
+   ===================================================================== */
+const COLUMNAS = 16, FILAS = 10, CELDA = 60;   // tamaño de la cuadrícula (no cambiar)
+
+const NIVELES = [
+  {
+    nombre: 'Calentamiento',
+    puntos: [[2, 7], [6, 7], [6, 3], [13, 3]],
+    ancho: 1.6,
+    tiempo: 16,
+    obstaculos: [],
+  },
+  {
+    nombre: 'La ese',
+    puntos: [[4, 2], [11, 2], [11, 5], [4, 5], [4, 8], [11, 8]],
+    ancho: 1.4,
+    tiempo: 22,
+    obstaculos: [],
+  },
+  {
+    nombre: 'Zigzag',
+    puntos: [[2, 2], [4, 7], [6, 2], [8, 7], [10, 2], [12, 7]],
+    ancho: 1.3,
+    tiempo: 19,
+    obstaculos: [],
+  },
+  {
+    nombre: 'El caracol',
+    puntos: [[3, 1], [12, 1], [12, 8], [3, 8], [3, 3], [10, 3], [10, 6], [6, 6]],
+    ancho: 1.2,
+    tiempo: 26,
+    obstaculos: [],
+  },
+  {
+    nombre: 'Tráfico',
+    puntos: [[1, 2], [13, 2], [13, 7], [2, 7]],
+    ancho: 1.2,
+    tiempo: 22,
+    obstaculos: [
+      { desde: [5, 0.9], hasta: [5, 3.1], radio: 0.35, periodo: 2.4 },
+      { desde: [9, 3.1], hasta: [9, 0.9], radio: 0.35, periodo: 2.0 },
+      { desde: [11.9, 4.5], hasta: [14.1, 4.5], radio: 0.35, periodo: 2.2 },
+      { desde: [7.5, 8.1], hasta: [7.5, 5.9], radio: 0.35, periodo: 2.6 },
+    ],
+  },
+  {
+    nombre: 'Escalera',
+    puntos: [[1, 8], [3, 8], [3, 6], [5, 6], [5, 4], [7, 4], [7, 2], [9, 2], [9, 4], [11, 4], [11, 6], [13, 6], [13, 8]],
+    ancho: 1.1,
+    tiempo: 15,
+    obstaculos: [
+      { desde: [4, 7.1], hasta: [4, 4.9], radio: 0.3, periodo: 2.2 },
+      { desde: [8, 0.9], hasta: [8, 3.1], radio: 0.3, periodo: 2.0 },
+      { desde: [12, 4.9], hasta: [12, 7.1], radio: 0.3, periodo: 1.9 },
+    ],
+  },
+  {
+    nombre: 'El laberinto',
+    puntos: [[1, 8], [1, 3], [4, 3], [4, 1], [9, 1], [9, 4], [6, 4], [6, 8], [11, 8], [11, 3], [14, 3], [14, 8]],
+    ancho: 1.0,
+    tiempo: 24,
+    obstaculos: [
+      { desde: [6.5, 0], hasta: [6.5, 2], radio: 0.32, periodo: 2.0 },
+      { desde: [8.5, 9], hasta: [8.5, 7], radio: 0.32, periodo: 1.8 },
+      { desde: [13, 5.5], hasta: [15, 5.5], radio: 0.32, periodo: 1.9 },
+    ],
+  },
+  {
+    // OJO: este nivel está calibrado cerca del límite humano (pide unos 160 px/s, unos 185 contando
+    // la espera de las sierras). Si nadie lo pasa, sube "tiempo" (28 lo hace bastante más llevadero).
+    nombre: 'Imposible',
+    puntos: [[1, 1], [3, 3], [5, 1], [7, 3], [9, 1], [11, 3], [13, 1], [13, 8], [11, 8], [11, 5], [9, 5],
+             [9, 8], [7, 8], [7, 5], [5, 5], [5, 8], [3, 8], [3, 5], [1, 5]],
+    ancho: 0.9,
+    tiempo: 26,
+    obstaculos: [
+      { desde: [12, 3.5], hasta: [14, 3.5], radio: 0.3, periodo: 1.8 },
+      { desde: [10, 4], hasta: [10, 6], radio: 0.3, periodo: 1.6 },
+      { desde: [6, 6.5], hasta: [8, 6.5], radio: 0.3, periodo: 1.7 },
+    ],
+  },
+  // EJEMPLO para copiar (una "U" con una sierra en el medio):
+  // {
+  //   nombre: 'Mi nivel',
+  //   puntos: [[2, 2], [13, 2], [13, 7], [2, 7]],
+  //   ancho: 1.2,
+  //   tiempo: 20,
+  //   obstaculos: [ { desde: [7, 1], hasta: [7, 3], radio: 0.3, periodo: 2 } ],
+  // },
+  // 💡 IDEA: paredes que parpadean: agregar al nivel "parpadeo: 2" (segundos) y, en dibujarPasillo()
+  //          y evaluarPunto(), hacer que algunos tramos desaparezcan y vuelvan cada 2 segundos.
+  // 💡 IDEA: portales: agregar al nivel "portales: [[[3, 2], [12, 7]]]" y en evaluarPunto(), si el
+  //          jugador entra al primero, moverlo al segundo (y poner ultimaPos ahí para no "atravesar" paredes).
+];
+
+/* =====================================================================
+   🔧 OBSTÁCULOS — sierras enojadas que van y vuelven
+   ---------------------------------------------------------------------
+   Cada obstáculo se escribe así (dentro de "obstaculos: [ ... ]" del nivel):
+     { desde: [x, y], hasta: [x, y], radio: 0.35, periodo: 2.4 }
+       desde   → dónde empieza (en celdas, como los puntos; se pueden usar decimales)
+       hasta   → hasta dónde llega antes de volver
+       radio   → tamaño de la sierra en celdas (0.35 = 21 px). Ese es su tamaño de choque.
+       periodo → segundos que tarda en ir y volver (más chico = más rápida)
+   Consejos para que sea justo:
+     • Haz que cruce el pasillo de lado a lado y que "desde" y "hasta"
+       queden metidos en la pared: así en cada extremo se abre el paso.
+     • No la pongas cerca de INICIO ni de META.
+     • No dejes que alcance otra parte del pasillo que no sea la que cruza.
+     • Antes de empezar el nivel la sierra espera quieta en "desde".
+   (MOSTRAR_GUIA te avisa si un obstáculo rompe alguna de estas reglas.)
+   💡 IDEA: obstáculos con ruta de varios puntos: cambiar desde/hasta por
+            "ruta: [[x, y], [x, y], [x, y]]" y en posicionObstaculo() recorrer la lista.
+   ===================================================================== */
+
+/* =====================================================================
+   🔧 INFINITO — niveles que se crean solos después del nivel 8
+   ---------------------------------------------------------------------
+   Cada nivel infinito es un camino al azar de tramos de 2 celdas.
+   Con cada nivel: más tramos, pasillo más angosto, más sierras y hay
+   que ir más rápido... hasta llegar a los topes de abajo.
+   EL TIEMPO SE CALCULA SOLO: según el largo del camino, el ancho y las
+   sierras, el juego le da a cada nivel los segundos justos para que haya
+   que ir a la VELOCIDAD de ese nivel. Así cada nivel es un poco más
+   exigente que el anterior y nunca imposible. Cuando se llega a
+   VELOCIDAD_MAX, esa es la perilla que manda la dificultad.
+   (Para comparar: el nivel 8 "Imposible" pide unos 185 px/s con sierras.)
+   ===================================================================== */
+const INFINITO = {
+  TRAMOS_INICIALES: 14,    // cuántos tramos (de 2 celdas) tiene "Infinito #1"
+  TRAMOS_POR_NIVEL: 1,     // cuántos tramos se agregan en cada nivel
+  TRAMOS_MAX: 20,          // tope de tramos
+  ANCHO_INICIAL: 0.9,      // celdas: ancho del pasillo en "Infinito #1" (máximo 1.5: el camino avanza de a 2 celdas
+                           //   y entre dos partes del pasillo tiene que quedar pared; si pones más, se usa 1.5)
+  ANCHO_POR_NIVEL: 0.02,   // celdas que se angosta en cada nivel
+  ANCHO_MINIMO: 0.8,       // celdas: nunca más angosto que esto (también máximo 1.5)
+  VELOCIDAD_INICIAL: 185,  // px/s que hay que ir en "Infinito #1" (en promedio, contando la espera de las sierras)
+  VELOCIDAD_POR_NIVEL: 5,  // px/s más rápido en cada nivel
+  VELOCIDAD_MAX: 230,      // px/s: tope (más de ~250 ya no lo pasa casi nadie)
+  TIEMPO_MINIMO: 9,        // segundos: ningún nivel dura menos que esto (aunque el camino sea corto)
+  OBSTACULOS_DESDE: 1,     // desde qué nivel infinito aparecen sierras
+  OBSTACULOS_CADA: 3,      // se agrega una sierra más cada estos niveles
+  OBSTACULOS_MAX: 4,       // tope de sierras
+  OBSTACULO_RADIO: 0.28,   // celdas: tamaño de las sierras
+  PERIODO_MIN: 1.6,        // segundos: sierra más rápida
+  PERIODO_MAX: 2.6,        // segundos: sierra más lenta
+  SEPARACION_SIERRAS: 2.5, // celdas: distancia mínima entre dos sierras
+  HUNDIR_SIERRA: 0.12,     // celdas: cuánto se mete cada sierra en la pared al final de su recorrido (deja el paso libre)
+  INTENTOS: 300,           // cuántas veces prueba crear un nivel válido antes de usar uno de respaldo
+};
+// Nivel de respaldo (por si el azar falla muchas veces seguidas): una serpiente segura
+const NIVEL_RESPALDO = [[2, 2], [12, 2], [12, 4], [2, 4], [2, 6], [12, 6], [12, 8], [2, 8]];
+
+/* =====================================================================
+   🔧 RANGOS — el título que te ganas según el nivel al que llegaste.
+   Se elige el ÚLTIMO cuyo "desde" sea menor o igual a tu nivel.
+   ===================================================================== */
+const RANGOS = [
+  { desde: 1, nombre: 'Mano de gelatina', emoji: '🍮' },
+  { desde: 3, nombre: 'Pulso de café', emoji: '☕' },
+  { desde: 5, nombre: 'Mano firme', emoji: '✋' },
+  { desde: 7, nombre: 'Pulso de cirujano', emoji: '🩺' },
+  { desde: 9, nombre: 'Robot sin nervios', emoji: '🤖' },
+];
+
+/* =====================================================================
+   🔧 TEXTOS — todo lo que se lee en pantalla está aquí.
+   Los que tienen (n) => `...${n}...` son textos con un número adentro:
+   cambia las palabras, pero deja igual lo que está entre ${ }.
+   ===================================================================== */
+const TEXTOS = {
+  TITULO: '🧱 No toques las paredes',
+  SUBTITULO: 'Lleva el cursor por un laberinto que se va cerrando. Si tocas un borde, pierdes.',
+  INICIO_TITULO: '¿Tienes buen pulso?',
+  INSTRUCCIONES: [
+    '🟢 Pon el cursor (o el dedo) en <b>INICIO</b>.',
+    '🏁 Llega a la <b>META</b> sin tocar las paredes.',
+    '⏳ ¡Apúrate! Las paredes se van cerrando.',
+  ],
+  BOTON_JUGAR: '▶ Jugar',
+  RECORD: (nivel, puntos) => `🏆 Récord: nivel ${nivel} · ${puntos} puntos`,
+  SIN_RECORD: '🏆 Récord: ¡todavía ninguno!',
+  SONIDO_SI: '🔊 Sonido: sí',
+  SONIDO_NO: '🔇 Sonido: no',
+  SONIDO_ICONO_SI: '🔊',
+  SONIDO_ICONO_NO: '🔇',
+  SONIDO_ARIA_SI: 'Sonido encendido. Toca para silenciar.',
+  SONIDO_ARIA_NO: 'Sonido apagado. Toca para activarlo.',
+  SONIDO_AYUDA: 'Sonido (tecla M)',   // lo que sale al dejar el mouse encima del botón 🔊
+  ATAJOS: '⌨️ Teclas: M = sonido · P o Esc = pausa',   // sólo se ve en computadores (no en celulares)
+  HUD_NIVEL: (n) => `Nivel ${n}`,
+  HUD_PUNTOS: (p) => `⭐ ${p}`,
+  HUD_PASILLO: 'Pasillo',
+  HUD_VIDAS_ARIA: (v, total) => `Vidas: ${v} de ${total}`,
+  CORAZON_LLENO: '❤️',
+  CORAZON_VACIO: '🖤',
+  NOMBRE_INFINITO: (n) => `Infinito #${n}`,
+  AVISO_INFINITO: '♾️ ¡Modo infinito! Desde ahora los niveles se crean solos.',
+  ETIQUETA_INICIO: 'INICIO',
+  ETIQUETA_META: 'META',
+  PISTA_MOUSE: '👆 Pon el cursor en INICIO',
+  PISTA_TACTIL: '👆 Toca INICIO y arrastra',
+  PAUSA: '⏸ PAUSA',
+  REGRESO_MOUSE: 'Vuelve a poner el cursor aquí',
+  REGRESO_TACTIL: 'Toca aquí para seguir',
+  ANUNCIO_NIVEL: (n, nombre) => `Nivel ${n}: ${nombre}. Pon el cursor en INICIO.`,
+  ANUNCIO_EMPEZO: '¡Vamos! Las paredes se empiezan a cerrar.',
+  ANUNCIO_PAUSA: 'Pausa. Vuelve a poner el cursor en el punto brillante para seguir.',
+  ANUNCIO_SIGUE: '¡Sigue!',
+  NIVEL_SUPERADO: (n, pts) => `¡Nivel ${n} superado! +${pts}`,
+  NIVEL_SOBRO: (pct) => `Te sobró ${pct}% de pasillo`,
+  BOTON_SIGUIENTE: 'Siguiente nivel ▶',
+  BOTON_VER_FINAL: 'Ver resultado ▶',   // en vez de "Siguiente nivel" al pasar el último nivel (sólo si MODO_INFINITO es false)
+  GOLPE: {
+    pared: '¡Tocaste la pared!',
+    aplastado: '¡Las paredes te aplastaron!',
+    obstaculo: '¡Te chocó un obstáculo!',
+  },
+  QUEDAN_VIDAS: (v) => (v === 1 ? 'Te queda 1 vida ❤️' : `Te quedan ${v} vidas ❤️`),
+  SIN_VIDAS: 'Sin vidas… 💀',
+  FIN_TITULO: '¡Fin del juego!',
+  FIN_TEXTO: (n) => `Llegaste al nivel <b>${n}</b>`,
+  FIN_PUNTOS: (p) => `Puntos: <b>${p}</b>`,
+  VICTORIA_TITULO: '¡Ganaste! 🏆',
+  VICTORIA_TEXTO: (n) => `Superaste los <b>${n}</b> niveles sin perder el pulso.`,
+  NUEVO_RECORD: '🏆 ¡Nuevo récord!',
+  RANGO_ETIQUETA: 'Tu rango',
+  BOTON_OTRA: '🔁 Jugar de nuevo',
+  BOTON_COMPARTIR: '📤 Compartir',
+  BOTON_INICIO: '🏠 Inicio',
+  COMPARTIR_TITULO: 'No toques las paredes',
+  COMPARTIR_TEXTO: (nivel, puntos, rango) =>
+    `Llegué al nivel ${nivel} en "No toques las paredes" con ${puntos} puntos: ${rango}. ¿Puedes superarme? 🧱`,
+  AVISO_COPIADO: '¡Texto copiado! Pégalo donde quieras 📋',
+  AVISO_ERROR_COMPARTIR: 'No se pudo compartir 😅',
+  ARIA_LIENZO: 'Laberinto del juego: lleva el punto desde INICIO hasta META sin tocar las paredes.',
+  GUIA_MAS: (n) => `…y ${n} problemas más (ver la consola con F12)`,   // sólo con MOSTRAR_GUIA
+};
+
+/* =====================================================================
+   🔧 SONIDOS — se crean con el navegador, sin archivos de audio.
+   Cada sonido es una lista de "tonos":
+     frecuencia      → qué tan agudo (Hz): 200 grave, 440 nota La, 1000 agudo
+     frecuenciaFinal → (opcional) a qué frecuencia se desliza mientras suena
+     duracion        → segundos que suena
+     tipo            → timbre: 'sine' (suave), 'triangle', 'square' (8 bits), 'sawtooth' (áspero)
+     volumen         → 0 a 1 (se multiplica por CONFIG.VOLUMEN)
+     retraso         → segundos que espera antes de sonar (para hacer melodías)
+   ===================================================================== */
+const SONIDOS = {
+  INICIO: [{ frecuencia: 520, frecuenciaFinal: 900, duracion: 0.12, tipo: 'square', volumen: 0.5 }],
+  TICK: [{ frecuencia: 1400, duracion: 0.04, tipo: 'square', volumen: 0.3 }],
+  GOLPE: [
+    { frecuencia: 170, frecuenciaFinal: 50, duracion: 0.45, tipo: 'sawtooth', volumen: 0.9 },
+    { frecuencia: 95, frecuenciaFinal: 40, duracion: 0.45, tipo: 'square', volumen: 0.5 },
+  ],
+  NIVEL: [
+    { frecuencia: 523, duracion: 0.16, tipo: 'triangle', volumen: 0.8, retraso: 0 },
+    { frecuencia: 659, duracion: 0.16, tipo: 'triangle', volumen: 0.8, retraso: 0.09 },
+    { frecuencia: 784, duracion: 0.16, tipo: 'triangle', volumen: 0.8, retraso: 0.18 },
+    { frecuencia: 1047, duracion: 0.3, tipo: 'triangle', volumen: 0.8, retraso: 0.27 },
+  ],
+  FIN: [
+    { frecuencia: 523, duracion: 0.28, tipo: 'triangle', volumen: 0.8, retraso: 0 },
+    { frecuencia: 440, duracion: 0.28, tipo: 'triangle', volumen: 0.8, retraso: 0.22 },
+    { frecuencia: 349, duracion: 0.28, tipo: 'triangle', volumen: 0.8, retraso: 0.44 },
+    { frecuencia: 262, frecuenciaFinal: 180, duracion: 0.6, tipo: 'triangle', volumen: 0.8, retraso: 0.66 },
+  ],
+  BOTON: [{ frecuencia: 660, duracion: 0.07, tipo: 'triangle', volumen: 0.4 }],
+  TICK_LENTO: 420,   // ms entre tic y tic cuando empieza el peligro
+  TICK_RAPIDO: 90,   // ms entre tic y tic justo antes de que te aplasten
+  // 💡 IDEA: música de fondo: un bucle de notas con setInterval que llame a tono(), o un
+  //          archivo .mp3 con new Audio('musica.mp3') que empiece en empezarNivel().
+};
+
+
+/* =====================================================================
+   De aquí para abajo está la "maquinaria" del juego.
+   Normalmente no hace falta tocarla, pero también tiene notas.
+   ===================================================================== */
+
+// ---------- Estado del juego ----------
+// "estado" dice en qué momento estamos. Sólo puede ser uno de estos:
+//   'inicio'        → pantalla de inicio
+//   'esperando'     → nivel listo, esperando que pongas el cursor en INICIO
+//   'jugando'       → corriendo: las paredes se cierran
+//   'pausa'         → sacaste el cursor (o el dedo): todo congelado
+//   'golpe'         → acabas de perder una vida (mensaje corto)
+//   'nivelSuperado' → llegaste a la META
+//   'gameOver'      → sin vidas
+//   'victoria'      → pasaste el último nivel (sólo si MODO_INFINITO es false)
+let estado = 'inicio';
+let nivelActual = 1;
+let vidas = CONFIG.VIDAS;
+let puntos = 0;
+// 💡 IDEA: modo dos jugadores por turnos: guardar vidas y puntos en un arreglo [jugador1, jugador2]
+//          y en perderVida() / completarNivel() cambiar de jugador (mostrando "Turno de J2").
+let nivelDePartida = 1;            // nivel donde empieza cada partida (1, o el de ?nivel=N)
+let datosNivel = null;             // el nivel tal como está escrito en 🔧 NIVELES (en celdas)
+let revision = null;               // resultado de validarNivel() para la guía
+let nivelesInfinitos = {};         // niveles infinitos ya creados (para repetir el mismo si pierdes)
+let polilinea = [];                // línea central del pasillo, en px del tablero
+let inicioPx = null, metaPx = null;
+let obstaculos = [];               // { desde, hasta, r, periodo } en px
+let obstaculosAhora = [];          // posición actual de cada sierra { x, y, r }
+let medioAnchoInicial = 0, medioAncho = 0;   // mitad del ancho del pasillo, en px
+let tiempoNivel = 0;               // segundos que lleva corriendo el nivel (se congela en pausa)
+let vertical = false;              // true = tablero "parado" (celular vertical)
+let W = COLUMNAS * CELDA, H = FILAS * CELDA;  // tamaño lógico del tablero (960 x 600 o 600 x 960)
+let escalaCss = 1;                 // cuánto se agranda/achica el tablero en la pantalla
+const puntero = { x: 0, y: 0, visible: false, tipo: tipoPunteroInicial() };   // tipo: 'mouse' o 'touch' (dedo)
+let ultimaPos = null;              // última posición revisada del jugador
+let ultimaSegura = null;           // última posición donde el jugador estaba a salvo
+let puntoRegreso = null;           // dónde hay que volver después de una pausa
+let regresoArmado = false;         // con mouse: true cuando el cursor ya salió del punto de regreso (recién ahí puede volver)
+let salioDelInicio = false;        // true cuando el jugador ya salió del círculo INICIO en este intento
+const desfase = { x: 0, y: 0 };    // con el dedo: distancia entre el dedo y el punto (ver alBajarPuntero)
+let puntoGolpe = null;             // dónde chocó
+let temporizador = null;           // para los mensajes que se cierran solos
+let particulas = [];
+let ultimoTick = 0;
+let fondoParedes = null, claveParedes = '';
+let record = leerRecord();
+let silencio = leerSilencio();
+let audio = null;
+
+// ---------- Elementos de la página ----------
+const $ = (id) => document.getElementById(id);
+const lienzo = $('lienzo');
+const ctx = lienzo.getContext('2d');
+const capaFiesta = $('capaFiesta');          // capa encima de todo, sólo para el confeti del final
+const ctxFiesta = capaFiesta.getContext('2d');
+const elZona = $('zona'), elCaja = $('caja'), elJuego = $('juego');
+const FUENTE_EMOJI = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+const PANTALLAS = ['pantallaInicio', 'pantallaNivel', 'pantallaGolpe', 'pantallaFin'];
+
+// ---------- Utilidades ----------
+const limitar = (v, min, max) => Math.max(min, Math.min(max, v));
+const distancia = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const menosMovimiento = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+function mezclar(lista, azar) {
+  for (let i = lista.length - 1; i > 0; i--) {
+    const j = Math.floor(azar() * (i + 1));
+    [lista[i], lista[j]] = [lista[j], lista[i]];
+  }
+  return lista;
+}
+
+// Convierte '#rrggbb' en [r, g, b]
+function rgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function conAlfa(hex, alfa) {
+  const [r, g, b] = rgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alfa})`;
+}
+// Mezcla dos colores: t = 0 → color a, t = 1 → color b
+function mezclarColor(a, b, t) {
+  const x = rgb(a), y = rgb(b);
+  return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(', ')})`;
+}
+
+
+/* =====================================================================
+   GEOMETRÍA (distancias entre puntos y tramos del pasillo)
+   ===================================================================== */
+function distPuntoSegmento(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const largo2 = dx * dx + dy * dy;
+  let t = largo2 ? ((px - ax) * dx + (py - ay) * dy) / largo2 : 0;
+  t = limitar(t, 0, 1);
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+
+// ¿Se cruzan los tramos a-b y c-d? (puntos como [x, y])
+function seCruzan(a, b, c, d) {
+  const lado = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+  return lado(a, b, c) * lado(a, b, d) < 0 && lado(c, d, a) * lado(c, d, b) < 0;
+}
+function distSegmentos(a, b, c, d) {
+  if (seCruzan(a, b, c, d)) return 0;
+  return Math.min(
+    distPuntoSegmento(a[0], a[1], c[0], c[1], d[0], d[1]),
+    distPuntoSegmento(b[0], b[1], c[0], c[1], d[0], d[1]),
+    distPuntoSegmento(c[0], c[1], a[0], a[1], b[0], b[1]),
+    distPuntoSegmento(d[0], d[1], a[0], a[1], b[0], b[1]));
+}
+function distAPuntos(p, P) {   // distancia de [x, y] a una lista de puntos [[x, y], ...] unidos
+  let min = Infinity;
+  for (let i = 0; i < P.length - 1; i++) min = Math.min(min, distPuntoSegmento(p[0], p[1], P[i][0], P[i][1], P[i + 1][0], P[i + 1][1]));
+  return min;
+}
+function largoCamino(P) {
+  let total = 0;
+  for (let i = 0; i < P.length - 1; i++) total += Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]);
+  return total;
+}
+// Distancia (en px) desde (x, y) hasta la línea central del nivel actual
+function distanciaAlCentro(x, y) {
+  let min = Infinity;
+  for (let i = 0; i < polilinea.length - 1; i++) {
+    const a = polilinea[i], b = polilinea[i + 1];
+    min = Math.min(min, distPuntoSegmento(x, y, a.x, a.y, b.x, b.y));
+  }
+  return min;
+}
+
+
+/* =====================================================================
+   REVISIÓN DE NIVELES — revisa que un nivel cumpla las reglas.
+   La usa la guía (MOSTRAR_GUIA) y el generador del modo infinito.
+   Todo se mide en celdas.
+   ===================================================================== */
+function revisarObstaculo(nivel, o, k) {
+  const P = nivel.puntos, h = nivel.ancho / 2;
+  const R = CONFIG.RADIO_INICIO_META / CELDA, rj = CONFIG.RADIO_JUGADOR / CELDA;
+  const nombre = `Obstáculo ${k + 1}`;
+  const problemas = [];
+  if (!(o.periodo >= 0.5)) problemas.push(`${nombre}: el periodo debe ser de al menos 0.5 segundos.`);
+  // ¿Qué tramos del pasillo alcanza a tocar? Debe ser uno solo (o sus vecinos).
+  const tocados = [];
+  for (let i = 0; i < P.length - 1; i++) if (distSegmentos(o.desde, o.hasta, P[i], P[i + 1]) < o.radio + h) tocados.push(i);
+  if (!tocados.length) problemas.push(`${nombre}: nunca cruza el pasillo.`);
+  else if (tocados[tocados.length - 1] - tocados[0] > 2) problemas.push(`${nombre}: alcanza dos partes distintas del pasillo.`);
+  // En cada extremo debe dejar libre el centro del pasillo
+  for (const e of [o.desde, o.hasta]) {
+    if (distAPuntos(e, P) < o.radio + rj + 0.1) problemas.push(`${nombre}: en [${e}] sigue tapando el centro del pasillo (llévalo más adentro de la pared).`);
+    if (e[0] + 0.5 - o.radio < 0 || e[0] + 0.5 + o.radio > COLUMNAS || e[1] + 0.5 - o.radio < 0 || e[1] + 0.5 + o.radio > FILAS) {
+      problemas.push(`${nombre}: en [${e}] se sale del tablero.`);
+    }
+  }
+  const lejos = R + o.radio + CONFIG.MARGEN_PARED;
+  const [ini, meta] = [P[0], P[P.length - 1]];
+  if (distPuntoSegmento(ini[0], ini[1], o.desde[0], o.desde[1], o.hasta[0], o.hasta[1]) < lejos) problemas.push(`${nombre}: está muy cerca de INICIO.`);
+  if (distPuntoSegmento(meta[0], meta[1], o.desde[0], o.desde[1], o.hasta[0], o.hasta[1]) < lejos) problemas.push(`${nombre}: está muy cerca de la META.`);
+  return problemas;
+}
+
+function validarNivel(nivel) {
+  const P = nivel.puntos || [];
+  const h = nivel.ancho / 2;
+  const R = CONFIG.RADIO_INICIO_META / CELDA, rj = CONFIG.RADIO_JUGADOR / CELDA;
+  const M = CONFIG.MARGEN_PARED;
+  const problemas = [];
+  if (P.length < 2) return { ok: false, problemas: ['El nivel necesita al menos 2 puntos.'], largo: 0, velocidad: 0, velocidadConObstaculos: 0 };
+  P.forEach((p, i) => {
+    if (p[0] < 1 || p[0] > COLUMNAS - 2 || p[1] < 1 || p[1] > FILAS - 2) problemas.push(`El punto ${i + 1} [${p}] está en la orilla (usa x de 1 a 14 e y de 1 a 8).`);
+  });
+  if (h <= rj) problemas.push('El pasillo es más angosto que el jugador: sube "ancho".');
+  // Tramos que no van seguidos: debe haber pared entre ellos
+  for (let i = 0; i < P.length - 1; i++) {
+    if (P[i][0] === P[i + 1][0] && P[i][1] === P[i + 1][1]) problemas.push(`Los puntos ${i + 1} y ${i + 2} son iguales.`);
+    for (let j = i + 2; j < P.length - 1; j++) {
+      const d = distSegmentos(P[i], P[i + 1], P[j], P[j + 1]);
+      if (d < nivel.ancho + M) problemas.push(`Los tramos ${i + 1} y ${j + 1} están muy pegados: ${d.toFixed(2)} celdas (mínimo ${(nivel.ancho + M).toFixed(2)}).`);
+    }
+  }
+  // INICIO y META no pueden quedar pegados a otra parte del pasillo
+  const minimo = R + h + M;
+  const ini = P[0], meta = P[P.length - 1];
+  for (let i = 0; i < P.length - 1; i++) {
+    if (i < P.length - 2 && distPuntoSegmento(meta[0], meta[1], P[i][0], P[i][1], P[i + 1][0], P[i + 1][1]) < minimo) problemas.push(`La META está muy cerca del tramo ${i + 1}.`);
+    if (i > 0 && distPuntoSegmento(ini[0], ini[1], P[i][0], P[i][1], P[i + 1][0], P[i + 1][1]) < minimo) problemas.push(`INICIO está muy cerca del tramo ${i + 1}.`);
+  }
+  (nivel.obstaculos || []).forEach((o, k) => problemas.push(...revisarObstaculo(nivel, o, k)));
+  // Velocidad promedio que necesita el jugador para llegar antes de que lo aplasten
+  const largo = largoCamino(P) * CELDA;
+  const tiempoUtil = nivel.tiempo * (1 - rj / h);
+  const espera = (nivel.obstaculos || []).reduce((s, o) => s + o.periodo / 2, 0);
+  return {
+    ok: problemas.length === 0,
+    problemas,
+    largo,
+    velocidad: largo / tiempoUtil,
+    velocidadConObstaculos: tiempoUtil > espera ? largo / (tiempoUtil - espera) : Infinity,
+  };
+}
+
+
+/* =====================================================================
+   MODO INFINITO — crea niveles al azar (ver 🔧 INFINITO)
+   ===================================================================== */
+// Camino al azar que nunca se pisa a sí mismo, en saltos de 2 celdas
+function caminataAlAzar(tramos, azar) {
+  const columnas = [], filas = [];
+  for (let x = 1 + Math.floor(azar() * 2); x <= COLUMNAS - 2; x += 2) columnas.push(x);
+  for (let y = 1 + Math.floor(azar() * 2); y <= FILAS - 2; y += 2) filas.push(y);
+  const visitado = new Set(), camino = [];
+  let presupuesto = 4000;
+  const DIRECCIONES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  function buscar(i, j) {
+    camino.push([i, j]);
+    visitado.add(i + ',' + j);
+    if (camino.length === tramos + 1) return true;
+    if (--presupuesto > 0) {
+      for (const [di, dj] of mezclar(DIRECCIONES.slice(), azar)) {
+        const ni = i + di, nj = j + dj;
+        if (ni < 0 || nj < 0 || ni >= columnas.length || nj >= filas.length || visitado.has(ni + ',' + nj)) continue;
+        if (buscar(ni, nj)) return true;
+        if (presupuesto <= 0) break;
+      }
+    }
+    camino.pop();
+    visitado.delete(i + ',' + j);
+    return false;
+  }
+  const ok = buscar(Math.floor(azar() * columnas.length), Math.floor(azar() * filas.length));
+  return ok ? camino.map(([i, j]) => [columnas[i], filas[j]]) : null;
+}
+
+// Junta los tramos que siguen en línea recta (quedan sólo los puntos donde dobla)
+function unirRectas(camino) {
+  const r = [camino[0]];
+  for (let k = 1; k < camino.length - 1; k++) {
+    const a = r[r.length - 1], b = camino[k], c = camino[k + 1];
+    if ((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) !== 0) r.push(b);
+  }
+  r.push(camino[camino.length - 1]);
+  return r;
+}
+
+function ponerObstaculosAlAzar(nivel, camino, cuantos, azar) {
+  const candidatos = [];
+  for (let k = 0; k < camino.length - 1; k++) {
+    const a = camino[k], b = camino[k + 1];
+    const dir = [(b[0] - a[0]) / 2, (b[1] - a[1]) / 2];
+    candidatos.push({ centro: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], dir });
+    const z = camino[k - 1];
+    if (z && (a[0] - z[0]) * (b[1] - a[1]) - (a[1] - z[1]) * (b[0] - a[0]) === 0) candidatos.push({ centro: a.slice(), dir });
+  }
+  const radio = INFINITO.OBSTACULO_RADIO;
+  const alejar = nivel.ancho / 2 + radio + INFINITO.HUNDIR_SIERRA;   // los extremos quedan metidos en la pared
+  const redondo = (v) => Math.round(v * 100) / 100;
+  for (const cand of mezclar(candidatos, azar)) {
+    if (nivel.obstaculos.length >= cuantos) break;
+    const lado = azar() < 0.5 ? 1 : -1;
+    const n = [-cand.dir[1] * lado, cand.dir[0] * lado];
+    const o = {
+      desde: [redondo(cand.centro[0] - n[0] * alejar), redondo(cand.centro[1] - n[1] * alejar)],
+      hasta: [redondo(cand.centro[0] + n[0] * alejar), redondo(cand.centro[1] + n[1] * alejar)],
+      radio,
+      periodo: redondo(INFINITO.PERIODO_MIN + azar() * (INFINITO.PERIODO_MAX - INFINITO.PERIODO_MIN)),
+    };
+    if (revisarObstaculo(nivel, o, 0).length) continue;
+    const muyCerca = nivel.obstaculos.some((q) =>
+      Math.hypot((q.desde[0] + q.hasta[0]) / 2 - cand.centro[0], (q.desde[1] + q.hasta[1]) / 2 - cand.centro[1]) < INFINITO.SEPARACION_SIERRAS);
+    if (!muyCerca) nivel.obstaculos.push(o);
+  }
+}
+
+// Segundos que necesita el nivel para que haya que ir a "velocidad" px/s
+// (contando la espera de las sierras y lo que se achica el pasillo)
+function calcularTiempo(nivel, velocidad) {
+  const factor = 1 - (CONFIG.RADIO_JUGADOR / CELDA) / (nivel.ancho / 2);
+  const espera = nivel.obstaculos.reduce((s, o) => s + o.periodo / 2, 0);
+  const necesario = (largoCamino(nivel.puntos) * CELDA / velocidad + espera) / factor;
+  return Math.max(INFINITO.TIEMPO_MINIMO, Math.ceil(necesario * 2) / 2);   // redondeado a medio segundo
+}
+
+// Crea el nivel infinito número n (1, 2, 3...). "azar" se puede cambiar para pruebas.
+function generarNivelInfinito(n, azar = Math.random) {
+  const I = INFINITO;
+  const anchoTope = 2 - CONFIG.MARGEN_PARED - 0.1;   // más ancho no cabe: los caminos van separados por 2 celdas
+  const ancho = Math.round(Math.min(anchoTope, Math.max(I.ANCHO_MINIMO, I.ANCHO_INICIAL - (n - 1) * I.ANCHO_POR_NIVEL)) * 100) / 100;
+  const velocidad = Math.min(I.VELOCIDAD_MAX, I.VELOCIDAD_INICIAL + (n - 1) * I.VELOCIDAD_POR_NIVEL);
+  const tramos = Math.min(I.TRAMOS_MAX, I.TRAMOS_INICIALES + Math.floor((n - 1) * I.TRAMOS_POR_NIVEL));
+  const cuantos = n >= I.OBSTACULOS_DESDE
+    ? Math.min(I.OBSTACULOS_MAX, 1 + Math.floor((n - I.OBSTACULOS_DESDE) / I.OBSTACULOS_CADA)) : 0;
+  const nombre = TEXTOS.NOMBRE_INFINITO(n);
+  for (let intento = 0; intento < I.INTENTOS; intento++) {
+    const camino = caminataAlAzar(tramos, azar);
+    if (!camino) continue;
+    const nivel = { nombre, puntos: unirRectas(camino), ancho, tiempo: 0, obstaculos: [] };
+    ponerObstaculosAlAzar(nivel, camino, cuantos, azar);
+    nivel.tiempo = calcularTiempo(nivel, velocidad);
+    if (validarNivel(nivel).ok) return nivel;
+  }
+  // Si nada funcionó: nivel de respaldo (siempre válido)
+  const respaldo = { nombre, puntos: NIVEL_RESPALDO.map((p) => p.slice()), ancho, tiempo: 0, obstaculos: [] };
+  respaldo.tiempo = calcularTiempo(respaldo, velocidad);
+  return respaldo;
+}
+
+
+/* =====================================================================
+   CARGAR UN NIVEL
+   ===================================================================== */
+function datosDelNivel(n) {
+  if (n <= NIVELES.length) return NIVELES[n - 1];
+  const k = n - NIVELES.length;
+  if (!nivelesInfinitos[k]) nivelesInfinitos[k] = generarNivelInfinito(k);
+  return nivelesInfinitos[k];
+}
+
+// Pasa un punto [x, y] en celdas a px. En vertical se "da vuelta" el nivel (x ↔ y).
+function aPx(c) {
+  const x = vertical ? c[1] : c[0], y = vertical ? c[0] : c[1];
+  return { x: (x + 0.5) * CELDA, y: (y + 0.5) * CELDA };
+}
+
+function decidirOrientacion() {
+  const zona = elZona.getBoundingClientRect();
+  vertical = zona.width > 0 && zona.width < zona.height;
+  W = (vertical ? FILAS : COLUMNAS) * CELDA;
+  H = (vertical ? COLUMNAS : FILAS) * CELDA;
+}
+
+// Deja el nivel n listo para dibujar (sin cambiar el estado del juego)
+function prepararNivel(n) {
+  nivelActual = n;
+  datosNivel = datosDelNivel(n);
+  revision = validarNivel(datosNivel);
+  decidirOrientacion();
+  polilinea = datosNivel.puntos.map(aPx);
+  inicioPx = polilinea[0];
+  metaPx = polilinea[polilinea.length - 1];
+  obstaculos = (datosNivel.obstaculos || []).map((o) => ({
+    desde: aPx(o.desde), hasta: aPx(o.hasta), r: o.radio * CELDA, periodo: o.periodo,
+  }));
+  medioAnchoInicial = medioAncho = (datosNivel.ancho * CELDA) / 2;
+  tiempoNivel = 0;
+  actualizarObstaculos();
+  ultimaPos = ultimaSegura = puntoRegreso = puntoGolpe = null;
+  salioDelInicio = false;
+  ajustarTamano();
+  if (CONFIG.MOSTRAR_GUIA && !revision.ok) console.warn(`Nivel ${n} (${datosNivel.nombre}):\n` + revision.problemas.join('\n'));
+}
+
+// Nivel listo y esperando que el jugador ponga el cursor en INICIO
+function cargarNivel(n) {
+  prepararNivel(n);
+  estado = 'esperando';
+  elCaja.classList.add('sin-cursor');
+  anunciar(TEXTOS.ANUNCIO_NIVEL(n, datosNivel.nombre));
+  if (n === NIVELES.length + 1) avisar(TEXTOS.AVISO_INFINITO);
+}
+
+// Calcula el tamaño del tablero para que quepa en la pantalla sin tener que bajar
+function ajustarTamano() {
+  const zona = elZona.getBoundingClientRect();
+  if (!zona.width || !zona.height) return;
+  escalaCss = Math.min(zona.width / W, zona.height / H);
+  const anchoCss = Math.max(1, Math.floor(W * escalaCss));
+  const altoCss = Math.max(1, Math.floor(H * escalaCss));
+  elCaja.style.width = anchoCss + 'px';
+  elCaja.style.height = altoCss + 'px';
+  // El canvas tiene más píxeles reales en pantallas nítidas (devicePixelRatio)
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  const anchoReal = Math.round(anchoCss * dpr), altoReal = Math.round(altoCss * dpr);
+  if (lienzo.width !== anchoReal) lienzo.width = anchoReal;
+  if (lienzo.height !== altoReal) lienzo.height = altoReal;
+  const clave = `${anchoReal}x${altoReal}x${W}`;
+  if (clave !== claveParedes) { claveParedes = clave; prepararParedes(); }
+}
+
+// La ventana cambió de tamaño (girar el celular, maximizar, zoom del navegador...)
+function alCambiarTamano() {
+  const zona = elZona.getBoundingClientRect();
+  if (!zona.width || !zona.height) return;
+  // Si estabas jugando, el tablero se movió debajo del cursor o del dedo: mejor pausar
+  // (si no, el siguiente movimiento "saltaría" atravesando paredes)
+  if (estado === 'jugando') { puntero.visible = false; pausar(); }
+  const antes = vertical;
+  decidirOrientacion();
+  if (vertical !== antes) {
+    if (['inicio', 'esperando', 'gameOver', 'victoria'].includes(estado)) { prepararNivel(nivelActual); return; }   // no ha empezado: se carga de nuevo
+    transponerNivel();   // en pausa (o en un mensaje): se da vuelta lo que hay, sin perder nada
+  }
+  ajustarTamano();
+}
+
+// Da vuelta el nivel que se está jugando (x ↔ y), por ejemplo si giras el celular en la pausa
+function transponerNivel() {
+  const t = (p) => (p ? { x: p.y, y: p.x } : p);
+  polilinea = polilinea.map(t);
+  inicioPx = polilinea[0];
+  metaPx = polilinea[polilinea.length - 1];
+  obstaculos = obstaculos.map((o) => ({ ...o, desde: t(o.desde), hasta: t(o.hasta) }));
+  actualizarObstaculos();
+  ultimaPos = t(ultimaPos); ultimaSegura = t(ultimaSegura); puntoRegreso = t(puntoRegreso); puntoGolpe = t(puntoGolpe);
+  particulas.forEach((p) => { [p.x, p.y, p.vx, p.vy] = [p.y, p.x, p.vy, p.vx]; });
+}
+
+
+/* =====================================================================
+   MOUSE Y DEDO
+   ===================================================================== */
+// Convierte la posición en la pantalla a px del tablero
+function aLogico(clienteX, clienteY) {
+  const r = lienzo.getBoundingClientRect();
+  return { x: ((clienteX - r.left) * W) / r.width, y: ((clienteY - r.top) * H) / r.height };
+}
+const esTactil = () => puntero.tipo === 'touch';
+// Antes de tocar nada: si la pantalla es táctil, se asume dedo
+function tipoPunteroInicial() {
+  try { return window.matchMedia('(pointer: coarse)').matches ? 'touch' : 'mouse'; } catch { return 'mouse'; }
+}
+// Cualquier clic o toque en la página: recuerda si es mouse o dedo y deja listo el sonido
+function alTocarPagina(e) {
+  if (e.pointerType) puntero.tipo = e.pointerType;
+  prepararAudio();
+}
+
+// Radio (en px del tablero) en que se acepta un toque con el dedo: nunca menos que CONFIG.TOQUE_MINIMO px de pantalla
+const radioToque = (r) => Math.max(r, CONFIG.TOQUE_MINIMO / escalaCss);
+// Radio del punto de regreso: con el dedo es más grande (más fácil de tocar)
+const radioRegresoActual = () => (esTactil() ? radioToque(radioRegreso()) : radioRegreso());
+
+function alMoverPuntero(e) {
+  if (!e.isPrimary) return;
+  puntero.tipo = e.pointerType || 'mouse';
+  if (!esTactil()) desfase.x = desfase.y = 0;
+  // Los navegadores juntan varios movimientos en uno: los revisamos todos
+  const juntos = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+  for (const ev of juntos.length ? juntos : [e]) {
+    const q = aLogico(ev.clientX, ev.clientY);
+    const p = { x: q.x + desfase.x, y: q.y + desfase.y };
+    puntero.x = p.x; puntero.y = p.y; puntero.visible = true;
+    procesarPosicion(p, false);
+  }
+}
+function alBajarPuntero(e) {
+  if (!e.isPrimary) return;
+  puntero.tipo = e.pointerType || 'mouse';
+  desfase.x = desfase.y = 0;
+  const q = aLogico(e.clientX, e.clientY);
+  // Toque "generoso" con el dedo: si cae cerca de INICIO (o del punto de regreso en la pausa),
+  // el punto parte en el centro del círculo y desde ahí sigue al dedo mientras no lo levantes.
+  if (esTactil()) {
+    const R = CONFIG.RADIO_INICIO_META;
+    let centro = null;
+    if (estado === 'esperando' && distancia(q, inicioPx) > R && distancia(q, inicioPx) <= radioToque(R)) centro = inicioPx;
+    if (estado === 'pausa' && distancia(q, puntoRegreso) <= radioRegresoActual()) centro = puntoRegreso;
+    if (centro) { desfase.x = centro.x - q.x; desfase.y = centro.y - q.y; }
+  }
+  const p = { x: q.x + desfase.x, y: q.y + desfase.y };
+  puntero.x = p.x; puntero.y = p.y; puntero.visible = true;
+  procesarPosicion(p, true);
+}
+function alSoltarPuntero(e) {
+  if (!e.isPrimary || e.pointerType === 'mouse') return;   // con mouse, soltar el botón no importa
+  puntero.visible = false;
+  desfase.x = desfase.y = 0;
+  if (estado !== 'jugando') return;
+  // Si levantaste el dedo sin salir de INICIO (por ejemplo, un toque), el nivel vuelve a esperar: no hay pausa
+  if (!salioDelInicio) volverAEsperar();
+  else pausar();
+}
+function alSalirPuntero(e) {
+  if (!e.isPrimary) return;
+  puntero.visible = false;
+  if (estado === 'jugando') pausar();
+}
+
+// Atajos de teclado (con mouse no hay que mover el cursor para silenciar o pausar)
+// 🔧 Para cambiar las teclas, cambia las letras de aquí (y el texto TEXTOS.ATAJOS).
+function alPresionarTecla(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;   // Ctrl+P es imprimir: no lo tocamos
+  const tecla = e.key.toLowerCase();
+  if (tecla === 'm') alternarSonido();
+  else if ((tecla === 'p' || tecla === 'escape') && estado === 'jugando') pausar(true);
+}
+
+// Qué pasa cuando el jugador se mueve a "p", según el estado del juego.
+// "alBajar" = true si fue un clic o un toque (no sólo mover).
+function procesarPosicion(p, alBajar) {
+  if (estado === 'esperando') {
+    if (distancia(p, inicioPx) <= CONFIG.RADIO_INICIO_META) empezarNivel(p);
+  } else if (estado === 'jugando') {
+    recorrer(ultimaPos, p);
+  } else if (estado === 'pausa') {
+    // Se sigue al volver al punto de regreso. Con el dedo: sólo al TOCAR el círculo (pasar el dedo encima no cuenta).
+    // Con el mouse: al pasar encima (si antes saliste del círculo) o al hacer clic en él.
+    const dentro = distancia(p, puntoRegreso) <= radioRegresoActual() && evaluarPunto(p.x, p.y) === 'ok';
+    if (!dentro) regresoArmado = true;
+    else if (alBajar || (!esTactil() && regresoArmado)) reanudar(p);
+  }
+}
+
+
+/* =====================================================================
+   REGLAS DEL JUEGO
+   ===================================================================== */
+// Parte del pasillo que queda: 1 = entero, 0 = te aplasta
+function fraccionUtil() {
+  const rj = CONFIG.RADIO_JUGADOR;
+  return limitar((medioAncho - rj) / (medioAnchoInicial - rj), 0, 1);
+}
+function curvaCierre(p) {
+  if (CONFIG.CURVA_CIERRE === 'acelerando') return p * p;
+  if (CONFIG.CURVA_CIERRE === 'frenando') return 1 - (1 - p) * (1 - p);
+  return p;
+}
+function posicionObstaculo(o, t) {
+  const s = (1 - Math.cos((2 * Math.PI * t) / o.periodo)) / 2;   // va de 0 a 1 y vuelve, suavecito
+  return { x: o.desde.x + (o.hasta.x - o.desde.x) * s, y: o.desde.y + (o.hasta.y - o.desde.y) * s, r: o.r };
+}
+function actualizarObstaculos() {
+  obstaculosAhora = obstaculos.map((o) => posicionObstaculo(o, tiempoNivel));
+}
+const radioRegreso = () => Math.max(CONFIG.RADIO_REGRESO, 2.5 * CONFIG.RADIO_JUGADOR);
+
+// Revisa un punto: 'ok' | 'meta' | 'pared' | 'obstaculo' | 'aplastado'
+function evaluarPunto(x, y) {
+  const rj = CONFIG.RADIO_JUGADOR, R = CONFIG.RADIO_INICIO_META;
+  if (medioAncho - rj < 0) return 'aplastado';
+  if (Math.hypot(x - metaPx.x, y - metaPx.y) <= R) return 'meta';
+  for (const o of obstaculosAhora) if (Math.hypot(x - o.x, y - o.y) < o.r + rj) return 'obstaculo';
+  if (Math.hypot(x - inicioPx.x, y - inicioPx.y) <= R) return 'ok';   // INICIO es zona segura
+  if (distanciaAlCentro(x, y) <= medioAncho - rj) return 'ok';
+  return 'pared';
+}
+
+// Revisa TODO el camino entre dos posiciones, cada 2 px: un movimiento rápido no atraviesa paredes
+function recorrer(a, b) {
+  const pasos = Math.max(1, Math.ceil(distancia(a, b) / CONFIG.PASO_COLISION));
+  for (let i = 1; i <= pasos; i++) {
+    const x = a.x + ((b.x - a.x) * i) / pasos, y = a.y + ((b.y - a.y) * i) / pasos;
+    const resultado = evaluarPunto(x, y);
+    if (resultado === 'ok') {
+      ultimaSegura = { x, y };
+      if (!salioDelInicio && Math.hypot(x - inicioPx.x, y - inicioPx.y) > CONFIG.RADIO_INICIO_META) salioDelInicio = true;
+      continue;
+    }
+    ultimaPos = { x, y };
+    resolver(resultado, x, y);
+    return;
+  }
+  ultimaPos = { x: b.x, y: b.y };
+}
+function resolver(resultado, x, y) {
+  if (resultado === 'meta') completarNivel();
+  else if (resultado !== 'ok') perderVida(resultado, x, y);
+}
+
+function empezarNivel(p) {
+  estado = 'jugando';
+  tiempoNivel = 0;
+  ultimaPos = { x: p.x, y: p.y };
+  ultimaSegura = { x: p.x, y: p.y };
+  salioDelInicio = false;
+  sonar(SONIDOS.INICIO);
+  anunciar(TEXTOS.ANUNCIO_EMPEZO);
+}
+
+// El nivel vuelve a esperar en INICIO con el pasillo entero (se usa si levantas el dedo sin salir de INICIO)
+function volverAEsperar() {
+  estado = 'esperando';
+  tiempoNivel = 0;
+  medioAncho = medioAnchoInicial;
+  actualizarObstaculos();
+  ultimaPos = ultimaSegura = null;
+}
+
+// Corre cada cuadro mientras se juega: achica el pasillo, mueve sierras y revisa choques
+function avanzarJuego(dt, ahora) {
+  tiempoNivel += dt;
+  medioAncho = medioAnchoInicial * (1 - curvaCierre(Math.min(1, tiempoNivel / datosNivel.tiempo)));
+  actualizarObstaculos();
+  // Aunque el cursor esté quieto, las paredes y sierras se mueven: hay que revisar igual.
+  // Si aquí da "pared" es porque la pared se cerró encima del jugador quieto: eso es "aplastado".
+  const resultado = evaluarPunto(ultimaPos.x, ultimaPos.y);
+  if (resultado === 'ok') ultimaSegura = { x: ultimaPos.x, y: ultimaPos.y };
+  else { resolver(resultado === 'pared' ? 'aplastado' : resultado, ultimaPos.x, ultimaPos.y); return; }
+  // Tic-tac cada vez más rápido cuando queda poco pasillo
+  const f = fraccionUtil();
+  if (f < CONFIG.PELIGRO) {
+    const intervalo = SONIDOS.TICK_LENTO + (SONIDOS.TICK_RAPIDO - SONIDOS.TICK_LENTO) * (1 - f / CONFIG.PELIGRO);
+    if (ahora - ultimoTick >= intervalo) { ultimoTick = ahora; sonar(SONIDOS.TICK); }
+  }
+}
+
+// PAUSA: se congela todo y hay que volver al "punto de regreso".
+// conTecla = true si se pausó con P o Esc (ver alPresionarTecla)
+function pausar(conTecla = false) {
+  if (estado !== 'jugando') return;
+  estado = 'pausa';
+  puntoRegreso = { x: ultimaSegura.x, y: ultimaSegura.y };
+  // Pausa con tecla y el cursor sigue encima del punto: primero tiene que salir del círculo y
+  // volver (o hacer clic en él). Así puedes ir al botón 🔊 sin que el juego siga solo.
+  regresoArmado = !(conTecla === true && puntero.visible && distancia(puntero, puntoRegreso) <= radioRegresoActual());
+  anunciar(TEXTOS.ANUNCIO_PAUSA);
+}
+function reanudar(p) {
+  if (estado !== 'pausa') return;
+  estado = 'jugando';
+  ultimaPos = { x: p.x, y: p.y };    // se sigue desde aquí (no desde donde salió el cursor)
+  ultimaSegura = { x: p.x, y: p.y };
+  anunciar(TEXTOS.ANUNCIO_SIGUE);
+}
+
+function programar(funcion, ms) {
+  clearTimeout(temporizador);
+  temporizador = setTimeout(funcion, ms);
+}
+
+// Llegaste a la META
+function completarNivel() {
+  if (estado !== 'jugando') return;
+  estado = 'nivelSuperado';
+  const fraccion = fraccionUtil();
+  const ganados = CONFIG.PUNTOS_POR_NIVEL + Math.round(CONFIG.PUNTOS_BONUS_MAX * fraccion);
+  puntos += ganados;
+  lanzarConfeti(metaPx.x, metaPx.y);
+  sonar(SONIDOS.NIVEL);
+  $('nivelTitulo').textContent = TEXTOS.NIVEL_SUPERADO(nivelActual, ganados);
+  $('nivelSub').textContent = TEXTOS.NIVEL_SOBRO(Math.round(fraccion * 100));
+  const esElUltimo = nivelActual >= NIVELES.length && !CONFIG.MODO_INFINITO;   // lo que sigue es "¡Ganaste!"
+  $('btnSiguiente').textContent = esElUltimo ? TEXTOS.BOTON_VER_FINAL : TEXTOS.BOTON_SIGUIENTE;
+  mostrarPantalla('pantallaNivel');
+  programar(siguienteNivel, CONFIG.TIEMPO_ENTRE_NIVELES);
+}
+
+function siguienteNivel() {
+  if (estado !== 'nivelSuperado') return;     // evita que el botón y el reloj lo hagan dos veces
+  clearTimeout(temporizador);
+  const siguiente = nivelActual + 1;
+  if (siguiente > NIVELES.length && !CONFIG.MODO_INFINITO) { terminarPartida(true); return; }
+  ocultarPantallas();
+  cargarNivel(siguiente);
+}
+
+// Perdiste una vida: 'pared' | 'aplastado' | 'obstaculo'
+function perderVida(motivo, x, y) {
+  if (estado !== 'jugando') return;           // nunca se pierden dos vidas de una vez
+  estado = 'golpe';
+  vidas = Math.max(0, vidas - 1);
+  puntoGolpe = { x, y };
+  lanzarChispas(x, y);
+  sonar(SONIDOS.GOLPE);
+  vibrar();
+  sacudir();
+  $('golpeTitulo').textContent = TEXTOS.GOLPE[motivo] || TEXTOS.GOLPE.pared;
+  $('golpeSub').textContent = vidas > 0 ? TEXTOS.QUEDAN_VIDAS(vidas) : TEXTOS.SIN_VIDAS;
+  mostrarPantalla('pantallaGolpe');
+  programar(() => {
+    if (estado !== 'golpe') return;
+    if (vidas <= 0) terminarPartida(false);
+    else { ocultarPantallas(); cargarNivel(nivelActual); }   // el MISMO nivel, con el pasillo entero
+  }, CONFIG.TIEMPO_GOLPE);
+}
+
+// Fin de la partida: ganaste = true muestra la Victoria, false el "¡Fin del juego!"
+function terminarPartida(ganaste) {
+  clearTimeout(temporizador);
+  estado = ganaste ? 'victoria' : 'gameOver';
+  elCaja.classList.remove('sin-cursor');
+  sonar(ganaste ? SONIDOS.NIVEL : SONIDOS.FIN);
+  const nuevoRecord = puntos > 0 && puntos > record.puntos;
+  record = { nivel: Math.max(record.nivel, nivelActual), puntos: Math.max(record.puntos, puntos) };
+  guardarRecord(record);
+  const rango = rangoPara(nivelActual);
+  $('finTitulo').textContent = ganaste ? TEXTOS.VICTORIA_TITULO : TEXTOS.FIN_TITULO;
+  $('finTexto').innerHTML = ganaste ? TEXTOS.VICTORIA_TEXTO(NIVELES.length) : TEXTOS.FIN_TEXTO(nivelActual);
+  $('finPuntos').innerHTML = TEXTOS.FIN_PUNTOS(puntos);
+  $('finRecord').hidden = !nuevoRecord;
+  $('finRango').textContent = `${rango.emoji} ${rango.nombre}`;
+  mostrarPantalla('pantallaFin');
+  if (nuevoRecord || ganaste) lanzarConfeti(W / 2, H / 3, true);   // true = encima de la pantalla de fin
+}
+
+function rangoPara(nivel) {
+  let elegido = RANGOS[0];
+  RANGOS.forEach((r) => { if (nivel >= r.desde) elegido = r; });
+  return elegido;
+}
+
+function empezarPartida(n) {
+  clearTimeout(temporizador);
+  vidas = CONFIG.VIDAS;
+  puntos = 0;
+  nivelesInfinitos = {};
+  particulas = [];
+  ocultarPantallas();
+  cargarNivel(n);
+}
+function nuevaPartida() {
+  if (!['inicio', 'gameOver', 'victoria'].includes(estado)) return;   // evita doble clic
+  empezarPartida(nivelDePartida);
+}
+function irAlInicio() {
+  if (!['gameOver', 'victoria'].includes(estado)) return;
+  estado = 'inicio';
+  vidas = CONFIG.VIDAS;      // el HUD de la pantalla de inicio no muestra la partida anterior
+  puntos = 0;
+  elCaja.classList.remove('sin-cursor');
+  prepararNivel(nivelDePartida);
+  actualizarTextoRecord();
+  mostrarPantalla('pantallaInicio');
+}
+
+
+/* =====================================================================
+   PANTALLAS, HUD Y AVISOS
+   ===================================================================== */
+function mostrarPantalla(id) {
+  PANTALLAS.forEach((p) => { $(p).hidden = p !== id; });
+  const pantalla = $(id);
+  const principal = pantalla.querySelector('[data-principal]');
+  if (principal) principal.focus({ preventScroll: true });
+  anunciar(pantalla.innerText.replace(/\s+/g, ' ').trim());
+}
+function ocultarPantallas() {
+  PANTALLAS.forEach((p) => { $(p).hidden = true; });
+}
+
+function anunciar(texto) {
+  const el = $('anuncio');
+  el.textContent = '';
+  setTimeout(() => { el.textContent = texto; }, 40);
+}
+
+let temporizadorAviso = null;
+function avisar(texto) {
+  const aviso = $('aviso');
+  aviso.textContent = texto;
+  aviso.classList.add('visible');
+  clearTimeout(temporizadorAviso);
+  temporizadorAviso = setTimeout(() => aviso.classList.remove('visible'), CONFIG.TIEMPO_AVISO);
+}
+
+function ponerTexto(el, texto) { if (el.textContent !== texto) el.textContent = texto; }
+
+// Se llama en cada cuadro, pero sólo cambia lo que cambió
+function actualizarHud() {
+  if (!datosNivel) return;
+  ponerTexto($('hudNivelNum'), TEXTOS.HUD_NIVEL(nivelActual));
+  ponerTexto($('hudNivelNombre'), datosNivel.nombre);
+  ponerTexto($('hudVidas'), TEXTOS.CORAZON_LLENO.repeat(vidas) + TEXTOS.CORAZON_VACIO.repeat(Math.max(0, CONFIG.VIDAS - vidas)));
+  const aria = TEXTOS.HUD_VIDAS_ARIA(vidas, CONFIG.VIDAS);
+  if ($('hudVidas').getAttribute('aria-label') !== aria) $('hudVidas').setAttribute('aria-label', aria);
+  ponerTexto($('hudPuntos'), TEXTOS.HUD_PUNTOS(puntos));
+  const pct = Math.round(fraccionUtil() * 100);
+  const porcentaje = pct + '%';
+  if ($('hudPorcentaje').textContent !== porcentaje) {
+    $('hudPorcentaje').textContent = porcentaje;
+    $('hudBarra').style.width = porcentaje;
+  }
+  $('hudPasillo').classList.toggle('peligro', pct / 100 < CONFIG.PELIGRO);
+}
+
+function actualizarBotonesSonido() {
+  $('btnSonido').textContent = silencio ? TEXTOS.SONIDO_ICONO_NO : TEXTOS.SONIDO_ICONO_SI;
+  $('btnSonido').setAttribute('aria-label', silencio ? TEXTOS.SONIDO_ARIA_NO : TEXTOS.SONIDO_ARIA_SI);
+  $('btnSonido').setAttribute('aria-pressed', String(!silencio));
+  $('btnSonidoInicio').textContent = silencio ? TEXTOS.SONIDO_NO : TEXTOS.SONIDO_SI;
+}
+function actualizarTextoRecord() {
+  $('textoRecord').textContent = record.nivel > 0 ? TEXTOS.RECORD(record.nivel, record.puntos) : TEXTOS.SIN_RECORD;
+}
+
+// Sacudón + destello rojo (no se hace si la persona pidió menos animaciones)
+function sacudir() {
+  if (menosMovimiento()) return;
+  for (const [el, clase] of [[elJuego, 'temblando'], [$('destello'), 'activo']]) {
+    el.classList.remove(clase);
+    void el.offsetWidth;            // truco para que la animación vuelva a empezar
+    el.classList.add(clase);
+  }
+}
+function vibrar() {
+  try {
+    const permitido = !navigator.userActivation || navigator.userActivation.hasBeenActive;
+    if (permitido && typeof navigator.vibrate === 'function') navigator.vibrate(CONFIG.TIEMPO_VIBRAR);
+  } catch { /* sin vibración: no pasa nada */ }
+}
+
+
+/* =====================================================================
+   SONIDO (sintetizador del navegador, ver 🔧 SONIDOS)
+   ===================================================================== */
+// El navegador sólo deja crear el audio después de un clic o toque
+function prepararAudio() {
+  try {
+    if (!audio) {
+      const ContextoAudio = window.AudioContext || window.webkitAudioContext;
+      if (!ContextoAudio) return;
+      audio = new ContextoAudio();
+    }
+    if (audio.state === 'suspended') audio.resume().catch(() => {});
+  } catch { audio = null; }
+}
+function tono(t) {
+  try {
+    const inicio = audio.currentTime + (t.retraso || 0);
+    const fin = inicio + t.duracion;
+    const osc = audio.createOscillator();
+    const ganancia = audio.createGain();
+    osc.type = t.tipo || 'sine';
+    osc.frequency.setValueAtTime(t.frecuencia, inicio);
+    if (t.frecuenciaFinal) osc.frequency.exponentialRampToValueAtTime(t.frecuenciaFinal, fin);
+    const volumen = Math.max(0.0001, CONFIG.VOLUMEN * (t.volumen ?? 1));
+    ganancia.gain.setValueAtTime(0.0001, inicio);
+    ganancia.gain.exponentialRampToValueAtTime(volumen, inicio + 0.008);
+    ganancia.gain.exponentialRampToValueAtTime(0.0001, fin);
+    osc.connect(ganancia);
+    ganancia.connect(audio.destination);
+    osc.start(inicio);
+    osc.stop(fin + 0.03);
+  } catch { /* sin sonido: no pasa nada */ }
+}
+function sonar(lista) {
+  if (silencio || !audio || audio.state !== 'running') return;
+  lista.forEach(tono);
+}
+function alternarSonido() {
+  silencio = !silencio;
+  guardarSilencio(silencio);
+  actualizarBotonesSonido();
+  if (!silencio) { prepararAudio(); sonar(SONIDOS.BOTON); }
+}
+
+
+/* =====================================================================
+   MEMORIA DEL NAVEGADOR (récord y sonido)
+   Si el navegador no deja guardar (modo incógnito, bloqueos), el juego
+   funciona igual; sólo no recuerda nada.
+   ===================================================================== */
+function leerRecord() {
+  try {
+    const r = JSON.parse(localStorage.getItem(CONFIG.CLAVE_RECORD));
+    if (r && Number.isFinite(r.nivel) && Number.isFinite(r.puntos)) return r;
+  } catch { /* sin memoria */ }
+  return { nivel: 0, puntos: 0 };
+}
+function guardarRecord(r) {
+  try { localStorage.setItem(CONFIG.CLAVE_RECORD, JSON.stringify(r)); } catch { /* sin memoria: no pasa nada */ }
+}
+// 💡 IDEA: tabla de récords: guardar una lista con los 5 mejores { nombre, nivel, puntos, fecha }
+//          en guardarRecord() y mostrarla en la pantalla de inicio.
+function leerSilencio() {
+  try {
+    const v = localStorage.getItem(CONFIG.CLAVE_SONIDO);
+    if (v === '1') return true;
+    if (v === '0') return false;
+  } catch { /* sin memoria */ }
+  return !CONFIG.SONIDO;
+}
+function guardarSilencio(valor) {
+  try { localStorage.setItem(CONFIG.CLAVE_SONIDO, valor ? '1' : '0'); } catch { /* sin memoria */ }
+}
+
+
+/* =====================================================================
+   COMPARTIR
+   ===================================================================== */
+async function compartir() {
+  const rango = rangoPara(nivelActual);
+  const texto = TEXTOS.COMPARTIR_TEXTO(nivelActual, puntos, `${rango.emoji} ${rango.nombre}`);
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: TEXTOS.COMPARTIR_TITULO, text: texto, url: CONFIG.URL_COMPARTIR });
+      return;
+    }
+    await navigator.clipboard.writeText(`${texto} ${CONFIG.URL_COMPARTIR}`);
+    avisar(TEXTOS.AVISO_COPIADO);
+  } catch (error) {
+    if (error && error.name === 'AbortError') return;    // la persona cerró el menú de compartir
+    try {
+      await navigator.clipboard.writeText(`${texto} ${CONFIG.URL_COMPARTIR}`);
+      avisar(TEXTOS.AVISO_COPIADO);
+    } catch { avisar(TEXTOS.AVISO_ERROR_COMPARTIR); }
+  }
+}
+
+
+/* =====================================================================
+   🔧 DIBUJO — todo lo que se ve en el tablero
+   Todo se dibuja en px "lógicos" (960 x 600, o 600 x 960 en vertical);
+   el juego lo agranda o achica solo para que quepa en la pantalla.
+   ===================================================================== */
+// En pantallas chicas los textos del tablero se agrandan un poco para que se lean
+const tamTexto = (base) => base * limitar(DIBUJO.TEXTO_MINIMO / escalaCss, 1, 1.7);
+
+// Las paredes de ladrillo se dibujan una sola vez en un canvas aparte (más rápido)
+function prepararParedes() {
+  const capa = document.createElement('canvas');
+  capa.width = lienzo.width;
+  capa.height = lienzo.height;
+  const c = capa.getContext('2d');
+  c.setTransform(capa.width / W, 0, 0, capa.height / H, 0, 0);
+  c.fillStyle = COLORES_JUEGO.pared;
+  c.fillRect(0, 0, W, H);
+  const a = DIBUJO.LADRILLO_ANCHO, b = DIBUJO.LADRILLO_ALTO;
+  c.fillStyle = 'rgba(255, 255, 255, 0.05)';   // brillito arriba de cada ladrillo
+  c.beginPath();
+  for (let fila = 0; fila * b < H; fila++) {
+    const desfase = (fila % 2) * (a / 2);
+    for (let x = -desfase; x < W; x += a) c.rect(x + 2, fila * b + 2, a - 4, 3);
+  }
+  c.fill();
+  c.strokeStyle = COLORES_JUEGO.paredJunta;
+  c.lineWidth = 2;
+  c.beginPath();
+  for (let fila = 0; fila * b < H; fila++) {
+    const y = fila * b, desfase = (fila % 2) * (a / 2);
+    c.moveTo(0, y); c.lineTo(W, y);
+    for (let x = -desfase; x < W; x += a) { c.moveTo(x, y); c.lineTo(x, y + b); }
+  }
+  c.stroke();
+  fondoParedes = capa;
+}
+
+function trazarPolilinea(c) {
+  c.beginPath();
+  c.moveTo(polilinea[0].x, polilinea[0].y);
+  for (let i = 1; i < polilinea.length; i++) c.lineTo(polilinea[i].x, polilinea[i].y);
+}
+
+// El pasillo: una línea gruesa con puntas y esquinas redondas.
+// Lo que se ve es EXACTAMENTE la zona donde el punto no choca.
+function dibujarPasillo(c, ahora) {
+  const f = fraccionUtil();
+  let colorBorde = mezclarColor(COLORES_JUEGO.borde, COLORES_JUEGO.bordePeligro, (1 - f) * 0.4);
+  if (estado !== 'inicio' && f < CONFIG.PELIGRO) {
+    // parpadea más rápido mientras más se cierra (con "menos animaciones" queda rojo fijo, sin parpadear)
+    const rapidez = DIBUJO.PARPADEO_LENTO + (DIBUJO.PARPADEO_RAPIDO - DIBUJO.PARPADEO_LENTO) * (1 - f / CONFIG.PELIGRO);
+    const latido = menosMovimiento() ? 1 : 0.5 + 0.5 * Math.sin((ahora / 1000) * rapidez);
+    colorBorde = mezclarColor(COLORES_JUEGO.borde, COLORES_JUEGO.bordePeligro, 0.5 + 0.5 * latido);
+  }
+  c.save();
+  c.lineJoin = 'round';
+  c.lineCap = 'round';
+  trazarPolilinea(c);
+  c.strokeStyle = colorBorde;
+  c.globalAlpha = 0.3;
+  c.lineWidth = 2 * medioAncho + 2 * (DIBUJO.GROSOR_BORDE + DIBUJO.HALO_BORDE);
+  c.stroke();
+  c.globalAlpha = 1;
+  c.lineWidth = 2 * medioAncho + 2 * DIBUJO.GROSOR_BORDE;
+  c.stroke();
+  if (medioAncho > 0.05) {
+    c.strokeStyle = COLORES_JUEGO.suelo;
+    c.lineWidth = 2 * medioAncho;
+    c.stroke();
+  }
+  c.restore();
+}
+
+// Texto con contorno oscuro (para que se lea sobre cualquier fondo)
+function etiqueta(c, texto, x, y, color, tam) {
+  c.font = `${tamTexto(tam)}px "Bangers", ${FUENTE_EMOJI}`;
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.lineWidth = 5;
+  c.strokeStyle = conAlfa(COLORES_JUEGO.contorno, 0.85);
+  c.strokeText(texto, x, y);
+  c.fillStyle = color;
+  c.fillText(texto, x, y);
+}
+// Altura de la etiqueta de un círculo: arriba del círculo (o abajo si no cabe)
+function yEtiqueta(p) {
+  const R = CONFIG.RADIO_INICIO_META, alto = tamTexto(DIBUJO.TAM_ETIQUETAS);
+  return p.y - R - alto * 0.7 < 0 ? p.y + R + alto * 0.7 : p.y - R - alto * 0.7;
+}
+function etiquetaCirculo(c, texto, p, color) {
+  etiqueta(c, texto, p.x, yEtiqueta(p), color, DIBUJO.TAM_ETIQUETAS);
+}
+
+function dibujarInicio(c, ahora) {
+  const { x, y } = inicioPx, R = CONFIG.RADIO_INICIO_META;
+  const latido = menosMovimiento() ? 0.5 : 0.5 + 0.5 * Math.sin((ahora / 1000) * Math.PI * 2 * DIBUJO.PULSO_INICIO);
+  const brillo = c.createRadialGradient(x, y, R * 0.3, x, y, R * (1.5 + 0.4 * latido));
+  brillo.addColorStop(0, conAlfa(COLORES_JUEGO.inicio, 0.45));
+  brillo.addColorStop(1, conAlfa(COLORES_JUEGO.inicio, 0));
+  c.fillStyle = brillo;
+  c.beginPath(); c.arc(x, y, R * (1.5 + 0.4 * latido), 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(x, y, R, 0, Math.PI * 2);
+  c.fillStyle = conAlfa(COLORES_JUEGO.inicio, 0.22 + 0.2 * latido);
+  c.fill();
+  c.lineWidth = 3;
+  c.strokeStyle = COLORES_JUEGO.inicio;
+  c.stroke();
+  etiquetaCirculo(c, TEXTOS.ETIQUETA_INICIO, inicioPx, COLORES_JUEGO.inicio);
+}
+
+function dibujarMeta(c) {
+  const { x, y } = metaPx, R = CONFIG.RADIO_INICIO_META;
+  const oro = c.createRadialGradient(x - R * 0.3, y - R * 0.3, R * 0.1, x, y, R);
+  oro.addColorStop(0, COLORES_JUEGO.meta);
+  oro.addColorStop(1, COLORES_JUEGO.metaOscuro);
+  c.beginPath(); c.arc(x, y, R, 0, Math.PI * 2);
+  c.fillStyle = oro; c.fill();
+  c.lineWidth = 3; c.strokeStyle = COLORES_JUEGO.metaAro; c.stroke();
+  // Banderita a cuadros
+  const palo = x - R * 0.3, arriba = y - R * 0.62, abajo = y + R * 0.62;
+  c.strokeStyle = COLORES_JUEGO.banderaPalo; c.lineWidth = 2.5;
+  c.beginPath(); c.moveTo(palo, abajo); c.lineTo(palo, arriba); c.stroke();
+  const lado = (R * 0.8) / 3;
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 2; j++) {
+      c.fillStyle = COLORES_JUEGO.banderaCuadros[(i + j) % 2];
+      c.fillRect(palo + i * lado, arriba + j * lado, lado, lado);
+    }
+  }
+  etiquetaCirculo(c, TEXTOS.ETIQUETA_META, metaPx, COLORES_JUEGO.meta);
+}
+
+// Sierra enojada. El círculo rojo suave es su tamaño real de choque.
+function dibujarSierra(c, o, ahora) {
+  const { x, y, r } = o;
+  const giro = menosMovimiento() ? 0 : (ahora / 1000) * DIBUJO.GIRO_SIERRA;
+  c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2);
+  c.fillStyle = conAlfa(COLORES_JUEGO.obstaculo, 0.2); c.fill();
+  c.beginPath();
+  const puntas = DIBUJO.PUNTAS_SIERRA * 2;
+  for (let i = 0; i <= puntas; i++) {
+    const radio = i % 2 ? r * 0.72 : r;
+    const ang = giro + (i * Math.PI) / DIBUJO.PUNTAS_SIERRA;
+    c.lineTo(x + Math.cos(ang) * radio, y + Math.sin(ang) * radio);
+  }
+  c.closePath();
+  c.fillStyle = COLORES_JUEGO.obstaculo; c.fill();
+  c.lineWidth = 2; c.strokeStyle = COLORES_JUEGO.obstaculoOscuro; c.stroke();
+  c.beginPath(); c.arc(x, y, r * 0.55, 0, Math.PI * 2);
+  c.fillStyle = COLORES_JUEGO.obstaculoOscuro; c.fill();
+  // Ojos enojados (no giran)
+  for (const lado of [-1, 1]) {
+    c.beginPath(); c.arc(x + lado * r * 0.2, y - r * 0.02, r * 0.14, 0, Math.PI * 2);
+    c.fillStyle = COLORES_JUEGO.sierraOjos; c.fill();
+    c.beginPath(); c.arc(x + lado * r * 0.17, y + r * 0.02, r * 0.07, 0, Math.PI * 2);
+    c.fillStyle = COLORES_JUEGO.sierraPupila; c.fill();
+    c.beginPath(); c.moveTo(x + lado * r * 0.42, y - r * 0.3); c.lineTo(x + lado * r * 0.08, y - r * 0.14);
+    c.strokeStyle = COLORES_JUEGO.sierraOjos; c.lineWidth = 2; c.stroke();
+  }
+}
+
+// El jugador: punto blanco con brillo. El punto sólido mide exactamente RADIO_JUGADOR.
+function dibujarJugador(c, x, y, color, alfa) {
+  const r = CONFIG.RADIO_JUGADOR;
+  c.save();
+  c.globalAlpha = alfa;
+  const brillo = c.createRadialGradient(x, y, 0, x, y, r * DIBUJO.BRILLO_JUGADOR);
+  brillo.addColorStop(0, conAlfa(COLORES_JUEGO.jugadorBrillo, 0.6));
+  brillo.addColorStop(1, conAlfa(COLORES_JUEGO.jugadorBrillo, 0));
+  c.fillStyle = brillo;
+  c.beginPath(); c.arc(x, y, r * DIBUJO.BRILLO_JUGADOR, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2);
+  c.fillStyle = color; c.fill();
+  c.restore();
+}
+
+// Cajita redondeada con texto (no se sale del tablero)
+function pildora(c, texto, x, y, borde) {
+  const tam = tamTexto(DIBUJO.TAM_PILDORAS);
+  c.font = `900 ${tam}px "Nunito", ${FUENTE_EMOJI}`;
+  const ancho = c.measureText(texto).width + tam * 1.4, alto = tam * 2;
+  const cx = limitar(x, ancho / 2 + 6, W - ancho / 2 - 6), cy = limitar(y, alto / 2 + 6, H - alto / 2 - 6);
+  c.fillStyle = conAlfa(COLORES_JUEGO.pildora, 0.9);
+  rectRedondo(c, cx - ancho / 2, cy - alto / 2, ancho, alto, alto / 2);
+  c.fill();
+  c.lineWidth = 2; c.strokeStyle = borde; c.stroke();
+  c.fillStyle = COLORES_JUEGO.texto;
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(texto, cx, cy + 1);
+  return { y: cy, alto };
+}
+// Pone una píldora cerca de un punto (abajo si cabe, si no arriba) con una flechita
+function pildoraJunto(c, texto, p, separacion, color, ahora) {
+  const alto = tamTexto(DIBUJO.TAM_PILDORAS) * 2;
+  const abajo = p.y + separacion + alto + 10 < H;
+  const salto = menosMovimiento() ? 0 : Math.sin((ahora / 1000) * 6) * 4;
+  const y = abajo ? p.y + separacion + alto / 2 + salto : p.y - separacion - alto / 2 - tamTexto(DIBUJO.TAM_ETIQUETAS) - salto;
+  const caja = pildora(c, texto, p.x, y, color);
+  const punta = abajo ? caja.y - caja.alto / 2 - 3 : caja.y + caja.alto / 2 + 3;
+  const dir = abajo ? -1 : 1;
+  c.beginPath();
+  c.moveTo(p.x - 8, punta); c.lineTo(p.x + 8, punta); c.lineTo(p.x, punta + dir * 10); c.closePath();
+  c.fillStyle = color; c.fill();
+}
+
+function dibujarPausa(c, ahora) {
+  c.fillStyle = conAlfa(COLORES_JUEGO.pausaFondo, DIBUJO.OSCURO_PAUSA);
+  c.fillRect(0, 0, W, H);
+  // "⏸ PAUSA" va arriba o abajo: donde quede más lejos del punto de regreso, de INICIO y de la META
+  const margen = tamTexto(DIBUJO.TAM_PAUSA) * 0.85;
+  const cosas = [puntoRegreso.y, inicioPx.y, metaPx.y, yEtiqueta(inicioPx), yEtiqueta(metaPx)];
+  const lejania = (y) => Math.min(...cosas.map((v) => Math.abs(v - y)));
+  const yPausa = lejania(margen) >= lejania(H - margen) ? margen : H - margen;
+  etiqueta(c, TEXTOS.PAUSA, W / 2, yPausa, COLORES_JUEGO.texto, DIBUJO.TAM_PAUSA);
+  const r = radioRegresoActual();   // con el dedo se dibuja más grande (es lo que se puede tocar)
+  const latido = menosMovimiento() ? 0.5 : 0.5 + 0.5 * Math.sin((ahora / 1000) * 5);
+  c.beginPath(); c.arc(puntoRegreso.x, puntoRegreso.y, r + 6 * latido, 0, Math.PI * 2);
+  c.strokeStyle = conAlfa(COLORES_JUEGO.regreso, 0.5); c.lineWidth = 2; c.stroke();
+  c.beginPath(); c.arc(puntoRegreso.x, puntoRegreso.y, r, 0, Math.PI * 2);
+  c.fillStyle = conAlfa(COLORES_JUEGO.regreso, 0.3); c.fill();
+  c.strokeStyle = COLORES_JUEGO.regreso; c.lineWidth = 3; c.stroke();
+  pildoraJunto(c, esTactil() ? TEXTOS.REGRESO_TACTIL : TEXTOS.REGRESO_MOUSE, puntoRegreso, r + 10, COLORES_JUEGO.regreso, ahora);
+}
+
+// Ayuda para el dueño: cuadrícula, coordenadas, línea central y problemas del nivel
+function dibujarGuia(c) {
+  c.save();
+  c.strokeStyle = conAlfa(COLORES_JUEGO.guia, 0.18);
+  c.lineWidth = 1;
+  c.beginPath();
+  for (let x = 0; x <= W; x += CELDA) { c.moveTo(x, 0); c.lineTo(x, H); }
+  for (let y = 0; y <= H; y += CELDA) { c.moveTo(0, y); c.lineTo(W, y); }
+  c.stroke();
+  c.font = '10px sans-serif';
+  c.fillStyle = conAlfa(COLORES_JUEGO.guia, 0.55);
+  c.textAlign = 'left'; c.textBaseline = 'top';
+  for (let i = 0; i < W / CELDA; i++) {
+    for (let j = 0; j < H / CELDA; j++) c.fillText(vertical ? `${j},${i}` : `${i},${j}`, i * CELDA + 3, j * CELDA + 3);
+  }
+  c.setLineDash([6, 6]);
+  c.strokeStyle = COLORES_JUEGO.guiaLinea; c.lineWidth = 2;
+  trazarPolilinea(c); c.stroke();
+  c.setLineDash([]);
+  c.font = 'bold 12px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  polilinea.forEach((p, i) => {
+    c.beginPath(); c.arc(p.x, p.y, 9, 0, Math.PI * 2); c.fillStyle = COLORES_JUEGO.guiaLinea; c.fill();
+    c.fillStyle = '#000000'; c.fillText(String(i + 1), p.x, p.y);
+  });
+  c.restore();
+}
+// Los avisos de la guía (velocidad y problemas) se dibujan al final, encima de todo
+function dibujarAvisosGuia(c) {
+  c.save();
+  const MAX = 5;   // cuántos problemas se escriben en el tablero (todos salen en la consola)
+  const lineas = [`Velocidad necesaria: ${Math.round(revision.velocidad)} px/s (con sierras: ${Math.round(revision.velocidadConObstaculos)})`]
+    .concat(revision.problemas.slice(0, MAX).map((t) => '⚠ ' + t));
+  if (revision.problemas.length > MAX) lineas.push(TEXTOS.GUIA_MAS(revision.problemas.length - MAX));
+  c.font = 'bold 13px sans-serif'; c.textAlign = 'left'; c.textBaseline = 'top';
+  lineas.forEach((t, i) => {
+    c.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    c.fillRect(4, 4 + i * 18, c.measureText(t).width + 8, 17);
+    c.fillStyle = i === 0 ? '#ffffff' : COLORES_JUEGO.guiaLinea;
+    c.fillText(t, 8, 6 + i * 18);
+  });
+  c.restore();
+}
+
+function rectRedondo(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+// ---------- Partículas: confeti (al ganar) y chispas (al chocar) ----------
+// "encima" = true: se dibuja en la capa de arriba (encima de la pantalla de fin)
+function lanzarParticulas(x, y, cantidad, colores, tipo, fuerza, encima = false) {
+  if (menosMovimiento()) return;   // quien pidió menos animaciones no ve partículas volando
+  for (let i = 0; i < cantidad; i++) {
+    const ang = Math.random() * Math.PI * 2, vel = fuerza * (0.35 + Math.random() * 0.65);
+    particulas.push({
+      x, y, tipo, encima,
+      vx: Math.cos(ang) * vel,
+      vy: Math.sin(ang) * vel - (tipo === 'confeti' ? fuerza * 0.6 : 0),
+      vida: 0,
+      max: 0.7 + Math.random() * (tipo === 'confeti' ? 1.1 : 0.4),
+      color: colores[i % colores.length],
+      tam: tipo === 'confeti' ? 5 + Math.random() * 5 : 2 + Math.random() * 3,
+      giro: Math.random() * Math.PI, vgiro: (Math.random() - 0.5) * 14,
+    });
+  }
+}
+const lanzarConfeti = (x, y, encima) => lanzarParticulas(x, y, DIBUJO.CONFETI_CANTIDAD, COLORES_JUEGO.confeti, 'confeti', DIBUJO.FUERZA_CONFETI, encima);
+const lanzarChispas = (x, y) => lanzarParticulas(x, y, DIBUJO.CHISPAS_CANTIDAD, COLORES_JUEGO.chispas, 'chispa', DIBUJO.FUERZA_CHISPAS);
+
+function actualizarParticulas(dt) {
+  for (const p of particulas) {
+    p.vida += dt;
+    p.vy += DIBUJO.GRAVEDAD * dt * (p.tipo === 'confeti' ? 0.6 : 1);
+    p.vx *= 1 - 1.5 * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.giro += p.vgiro * dt;
+  }
+  particulas = particulas.filter((p) => p.vida < p.max);
+}
+function dibujarParticulas(c, lista) {
+  for (const p of lista) {
+    c.globalAlpha = 1 - p.vida / p.max;
+    c.fillStyle = p.color;
+    if (p.tipo === 'confeti') {
+      c.save(); c.translate(p.x, p.y); c.rotate(p.giro);
+      c.fillRect(-p.tam / 2, -p.tam / 4, p.tam, p.tam / 2);
+      c.restore();
+    } else {
+      c.beginPath(); c.arc(p.x, p.y, p.tam, 0, Math.PI * 2); c.fill();
+    }
+  }
+  c.globalAlpha = 1;
+}
+
+// Capa de arriba (encima de la pantalla de fin): sólo trabaja mientras hay confeti "encima"
+let fiestaSucia = false;
+function dibujarFiesta() {
+  const encima = particulas.filter((p) => p.encima);
+  if (!encima.length && !fiestaSucia) return;
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  const ancho = Math.round(window.innerWidth * dpr), alto = Math.round(window.innerHeight * dpr);
+  if (capaFiesta.width !== ancho) capaFiesta.width = ancho;
+  if (capaFiesta.height !== alto) capaFiesta.height = alto;
+  ctxFiesta.setTransform(1, 0, 0, 1, 0, 0);
+  ctxFiesta.clearRect(0, 0, ancho, alto);
+  fiestaSucia = encima.length > 0;
+  if (!fiestaSucia) return;
+  // Mismas coordenadas que el tablero, pero el confeti puede salir volando fuera de él
+  const r = lienzo.getBoundingClientRect();
+  ctxFiesta.setTransform((dpr * r.width) / W, 0, 0, (dpr * r.height) / H, dpr * r.left, dpr * r.top);
+  dibujarParticulas(ctxFiesta, encima);
+}
+
+// Dibuja todo el tablero (se llama en cada cuadro)
+function dibujar(ahora) {
+  const c = ctx;
+  c.setTransform(lienzo.width / W, 0, 0, lienzo.height / H, 0, 0);
+  c.clearRect(0, 0, W, H);
+  if (!datosNivel) return;
+  // 💡 IDEA: niveles que giran: aquí hacer c.translate(W/2, H/2); c.rotate(angulo); c.translate(-W/2, -H/2)
+  //          y en aLogico() aplicar la rotación al revés, para que el choque siga siendo exacto.
+  // 1) Paredes (y se ponen rojas mientras se cierran)
+  if (fondoParedes) c.drawImage(fondoParedes, 0, 0, W, H);
+  const peligro = 1 - fraccionUtil();
+  if (peligro > 0) {
+    c.globalAlpha = peligro * DIBUJO.TINTE_PELIGRO;
+    c.fillStyle = COLORES_JUEGO.paredPeligro;
+    c.fillRect(0, 0, W, H);
+    c.globalAlpha = 1;
+  }
+  // 2) Pasillo, INICIO, META, sierras y partículas
+  dibujarPasillo(c, ahora);
+  if (CONFIG.MOSTRAR_GUIA) dibujarGuia(c);
+  dibujarInicio(c, ahora);
+  dibujarMeta(c);
+  obstaculosAhora.forEach((o) => dibujarSierra(c, o, ahora));
+  dibujarParticulas(c, particulas.filter((p) => !p.encima));
+  // 3) Mensajes y jugador según el estado
+  if (estado === 'esperando') {
+    pildoraJunto(c, esTactil() ? TEXTOS.PISTA_TACTIL : TEXTOS.PISTA_MOUSE, inicioPx, CONFIG.RADIO_INICIO_META + 8, COLORES_JUEGO.inicio, ahora);
+  }
+  if (estado === 'pausa') dibujarPausa(c, ahora);
+  if (estado === 'golpe' && puntoGolpe) dibujarJugador(c, puntoGolpe.x, puntoGolpe.y, COLORES_JUEGO.bordePeligro, 1);
+  else if (estado === 'nivelSuperado' && ultimaPos) dibujarJugador(c, ultimaPos.x, ultimaPos.y, COLORES_JUEGO.jugador, 1);
+  else if (['esperando', 'jugando', 'pausa'].includes(estado) && puntero.visible) {
+    const enJuego = estado === 'jugando' && ultimaPos;
+    dibujarJugador(c, enJuego ? ultimaPos.x : puntero.x, enJuego ? ultimaPos.y : puntero.y, COLORES_JUEGO.jugador, estado === 'pausa' ? 0.5 : 1);
+  }
+  // 4) Avisos de la guía para el dueño, encima de todo
+  if (CONFIG.MOSTRAR_GUIA) dibujarAvisosGuia(c);
+}
+
+
+/* =====================================================================
+   BUCLE PRINCIPAL (unas 60 veces por segundo)
+   ===================================================================== */
+let ultimoCuadro = performance.now();
+function bucle(ahora) {
+  requestAnimationFrame(bucle);
+  const dt = limitar((ahora - ultimoCuadro) / 1000, 0, 0.1);   // si el celular se traba, no salta de golpe
+  ultimoCuadro = ahora;
+  if (estado === 'jugando') avanzarJuego(dt, ahora);
+  actualizarParticulas(dt);
+  dibujar(ahora);
+  dibujarFiesta();
+  actualizarHud();
+}
+
+
+/* =====================================================================
+   ARRANQUE
+   ===================================================================== */
+function ponerTextos() {
+  document.title = TEXTOS.TITULO.replace(/^\P{L}+/u, '');
+  $('titulo').textContent = TEXTOS.TITULO;
+  $('tituloCompacto').textContent = TEXTOS.TITULO;   // el mismo título, dentro de la tarjeta (celular acostado)
+  $('subtitulo').textContent = TEXTOS.SUBTITULO;
+  $('textoAtajos').textContent = TEXTOS.ATAJOS;
+  $('btnSonido').title = TEXTOS.SONIDO_AYUDA;
+  $('inicioTitulo').textContent = TEXTOS.INICIO_TITULO;
+  $('instrucciones').innerHTML = TEXTOS.INSTRUCCIONES.map((t) => `<li>${t}</li>`).join('');
+  $('btnJugar').textContent = TEXTOS.BOTON_JUGAR;
+  $('btnSiguiente').textContent = TEXTOS.BOTON_SIGUIENTE;
+  $('btnOtra').textContent = TEXTOS.BOTON_OTRA;
+  $('btnCompartir').textContent = TEXTOS.BOTON_COMPARTIR;
+  $('btnInicio').textContent = TEXTOS.BOTON_INICIO;
+  $('finRecord').textContent = TEXTOS.NUEVO_RECORD;
+  $('finRangoEtiqueta').textContent = TEXTOS.RANGO_ETIQUETA;
+  $('hudPasilloTexto').textContent = TEXTOS.HUD_PASILLO;
+  lienzo.setAttribute('aria-label', TEXTOS.ARIA_LIENZO);
+  actualizarBotonesSonido();
+  actualizarTextoRecord();
+}
+
+// Los eventos se conectan UNA sola vez (no se duplican al reiniciar)
+function conectarEventos() {
+  lienzo.addEventListener('pointermove', alMoverPuntero);
+  lienzo.addEventListener('pointerdown', alBajarPuntero);
+  lienzo.addEventListener('pointerup', alSoltarPuntero);
+  lienzo.addEventListener('pointercancel', alSoltarPuntero);
+  lienzo.addEventListener('pointerleave', alSalirPuntero);
+  lienzo.addEventListener('contextmenu', (e) => e.preventDefault());
+  window.addEventListener('blur', pausar);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pausar(); });
+  window.addEventListener('resize', alCambiarTamano);
+  if (window.ResizeObserver) new ResizeObserver(alCambiarTamano).observe(elZona);
+  // El sonido sólo puede empezar después de un clic o toque
+  document.addEventListener('pointerdown', alTocarPagina, true);
+  document.addEventListener('keydown', prepararAudio, true);
+  document.addEventListener('keydown', alPresionarTecla);
+  $('btnJugar').addEventListener('click', nuevaPartida);
+  $('btnSiguiente').addEventListener('click', siguienteNivel);
+  $('btnOtra').addEventListener('click', nuevaPartida);
+  $('btnCompartir').addEventListener('click', compartir);
+  $('btnInicio').addEventListener('click', irAlInicio);
+  $('btnSonido').addEventListener('click', alternarSonido);
+  $('btnSonidoInicio').addEventListener('click', alternarSonido);
+}
+
+// ?nivel=N en la dirección: empieza directo en ese nivel
+function nivelDeLaDireccion() {
+  try {
+    const n = parseInt(new URLSearchParams(location.search).get('nivel'), 10);
+    if (!Number.isFinite(n) || n < 1) return null;
+    return CONFIG.MODO_INFINITO ? n : Math.min(n, NIVELES.length);
+  } catch { return null; }
+}
+
+/* Ayudante PARA PRUEBAS; se puede borrar. Permite que un programa de pruebas
+   lea el estado del juego (no cambia nada del juego). */
+window.juegoDebug = {
+  estado: () => estado,
+  nivel: () => nivelActual,
+  vidas: () => vidas,
+  puntos: () => puntos,
+  medioAncho: () => medioAncho,
+  polilinea: () => polilinea.map((p) => ({ x: p.x, y: p.y })),
+  inicio: () => ({ x: inicioPx.x, y: inicioPx.y, r: CONFIG.RADIO_INICIO_META }),
+  meta: () => ({ x: metaPx.x, y: metaPx.y, r: CONFIG.RADIO_INICIO_META }),
+  obstaculos: () => obstaculosAhora.map((o) => ({ x: o.x, y: o.y, r: o.r })),
+  tamanoLogico: () => ({ w: W, h: H }),
+  aPantalla: (x, y) => {
+    const r = lienzo.getBoundingClientRect();
+    return { x: r.left + (x * r.width) / W, y: r.top + (y * r.height) / H };
+  },
+};
+
+function arrancar() {
+  ponerTextos();
+  conectarEventos();
+  const n = nivelDeLaDireccion();
+  if (n) {
+    nivelDePartida = n;
+    empezarPartida(n);
+  } else {
+    prepararNivel(1);
+    mostrarPantalla('pantallaInicio');
+  }
+  requestAnimationFrame((t) => { ultimoCuadro = t; bucle(t); });
+}
+arrancar();
+</script>
+</body>
+</html>
+
