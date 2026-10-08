@@ -337,6 +337,9 @@
     .juego.temblando, .destello.activo { animation: none; }
     .btn, .aviso { transition: none; }
   }
+     /* El botón "¡Aquí hay más!" sólo se ve cuando pierdes */
+.ma-b { display: none; }
+body.perdiste .ma-b { display: block; }
 </style>
 </head>
 <body>
