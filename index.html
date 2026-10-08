@@ -1594,6 +1594,7 @@ function irAlInicio() {
    PANTALLAS, HUD Y AVISOS
    ===================================================================== */
 function mostrarPantalla(id) {
+     document.body.classList.toggle('perdiste', id === 'pantallaFin' && estado === 'gameOver');
   PANTALLAS.forEach((p) => { $(p).hidden = p !== id; });
   const pantalla = $(id);
   const principal = pantalla.querySelector('[data-principal]');
@@ -1601,6 +1602,7 @@ function mostrarPantalla(id) {
   anunciar(pantalla.innerText.replace(/\s+/g, ' ').trim());
 }
 function ocultarPantallas() {
+       document.body.classList.remove('perdiste');
   PANTALLAS.forEach((p) => { $(p).hidden = true; });
 }
 
